@@ -1,0 +1,2058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cohort Tracker</title>
+<style>
+  :root {
+    --bg-0:#0b0b0e;--bg-1:#13131a;--bg-2:#1a1a24;--bg-3:#232330;--bg-4:#2d2d3d;
+    --fg-1:#f0f0f5;--fg-2:#a0a0b0;--fg-3:#6e6e80;
+    --accent:#6366f1;--accent-2:#818cf8;--accent-dim:#312e81;
+    --border:#2a2a3a;--danger:#ef4444;--success:#22c55e;--warning:#f59e0b;--info:#3b82f6;
+    --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --shadow:0 4px 24px rgba(0,0,0,0.4);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font-sans);background:var(--bg-0);color:var(--fg-1);font-size:13px;line-height:1.5;overflow:hidden;height:100vh}
+  .app{display:flex;height:100vh}
+  .sidebar{width:260px;background:var(--bg-1);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+  .sidebar-header{padding:20px;border-bottom:1px solid var(--border)}
+  .sidebar-header h1{margin:0;font-size:18px;font-weight:700;letter-spacing:-0.3px}
+  .sidebar-header p{margin:4px 0 0;color:var(--fg-3);font-size:12px}
+  .cohort-list{flex:1;overflow-y:auto;padding:10px}
+  .cohort-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:4px;transition:all .15s;border:1px solid transparent}
+  .cohort-item:hover{background:var(--bg-2);border-color:var(--border)}
+  .cohort-item.active{background:var(--accent-dim);border-color:var(--accent);color:var(--fg-1)}
+  .cohort-item.active .cohort-meta{color:var(--fg-2)}
+  .cohort-delete-btn{background:rgba(239,68,68,0.12);color:var(--danger);border:1px solid rgba(239,68,68,0.25);border-radius:6px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;font-weight:700;flex-shrink:0;opacity:0;transition:opacity .15s,background .15s}
+  .cohort-item:hover .cohort-delete-btn,.cohort-item.active .cohort-delete-btn{opacity:1}
+  .cohort-delete-btn:hover{background:rgba(239,68,68,0.3)}
+  .cohort-meta{font-size:11px;color:var(--fg-3);margin-top:2px}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit;white-space:nowrap}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:var(--accent-2)}
+  .btn-secondary{background:var(--bg-3);color:var(--fg-1);border:1px solid var(--border)}
+  .btn-secondary:hover{background:var(--bg-4)}
+  .btn-danger{background:rgba(239,68,68,0.12);color:var(--danger);border:1px solid rgba(239,68,68,0.25)}
+  .btn-danger:hover{background:rgba(239,68,68,0.2)}
+  .btn-ghost{background:transparent;color:var(--fg-2);border:1px dashed var(--border)}
+  .btn-ghost:hover{color:var(--fg-1);border-color:var(--fg-3)}
+  .btn-sm{padding:5px 10px;font-size:12px}
+  .sidebar-footer{padding:12px;border-top:1px solid var(--border);display:flex;gap:8px;flex-direction:column}
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+  .topbar{height:56px;background:var(--bg-1);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0}
+  .topbar-left{display:flex;align-items:center;gap:12px}
+  .topbar-right{display:flex;align-items:center;gap:8px}
+  .tabs{display:flex;gap:2px;background:var(--bg-2);padding:4px;border-radius:10px}
+  .tab{padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:600;color:var(--fg-3);border:none;background:transparent;font-family:inherit;font-size:13px;transition:all .15s;white-space:nowrap}
+  .tab:hover{color:var(--fg-2)}
+  .tab.active{background:var(--bg-3);color:var(--fg-1);box-shadow:var(--shadow)}
+  .content{flex:1;overflow:auto;padding:20px}
+  .panel{background:var(--bg-1);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+  .panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px}
+  .panel-title{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .panel-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .grid{display:grid;gap:16px}
+  .grid-4{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+  .kpi-card{background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:16px;position:relative;overflow:hidden}
+  .kpi-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent);opacity:.3}
+  .kpi-value{font-size:32px;font-weight:800;color:var(--fg-1);line-height:1}
+  .kpi-value.danger{color:var(--danger)}
+  .kpi-value.success{color:var(--success)}
+  .kpi-value.warning{color:var(--warning)}
+  .kpi-label{font-size:12px;color:var(--fg-3);margin-top:6px}
+  .progress-bar{height:6px;background:var(--bg-3);border-radius:3px;overflow:hidden;margin-top:8px}
+  .progress-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .3s}
+  .table-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--border)}
+  table.data-table{width:100%;border-collapse:collapse;font-size:12px;min-width:800px}
+  table.data-table th{background:var(--bg-2);color:var(--fg-2);padding:10px 12px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:2}
+  table.data-table td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--fg-1);vertical-align:middle}
+  table.data-table tr:hover td{background:rgba(99,102,241,0.05)}
+  table.data-table tr:last-child td{border-bottom:none}
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap}
+  .badge-present{background:rgba(34,197,94,0.12);color:var(--success)}
+  .badge-absent{background:rgba(239,68,68,0.12);color:var(--danger)}
+  .badge-submitted{background:rgba(59,130,246,0.12);color:var(--info)}
+  .badge-approved{background:rgba(34,197,94,0.12);color:var(--success)}
+  .badge-rejected{background:rgba(239,68,68,0.12);color:var(--danger)}
+  .badge-notsubmitted{background:var(--bg-3);color:var(--fg-3)}
+  .badge-tripwire{background:rgba(239,68,68,0.12);color:var(--danger)}
+  .badge-safe{background:rgba(34,197,94,0.12);color:var(--success)}
+  .badge-pending{background:rgba(245,158,11,0.12);color:var(--warning)}
+  .search-box{width:240px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-0);color:var(--fg-1);font-size:13px;font-family:inherit;outline:none;transition:border-color .15s}
+  .search-box:focus{border-color:var(--accent)}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:100;opacity:0;pointer-events:none;transition:opacity .2s}
+  .modal-overlay.open{opacity:1;pointer-events:auto}
+  .modal{background:var(--bg-1);border:1px solid var(--border);border-radius:16px;width:600px;max-width:92vw;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;transform:scale(0.96);transition:transform .2s;box-shadow:var(--shadow)}
+  .modal-overlay.open .modal{transform:scale(1)}
+  .modal-header{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .modal-header h3{margin:0;font-size:16px}
+  .modal-body{padding:20px;overflow-y:auto;flex:1}
+  .modal-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+  .form-group{margin-bottom:16px}
+  .form-group label{display:block;font-size:11px;font-weight:700;color:var(--fg-2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+  .form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-0);color:var(--fg-1);font-size:13px;font-family:inherit;outline:none}
+  .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--accent)}
+  .form-group textarea{min-height:100px;resize:vertical;font-family:monospace;font-size:12px}
+  .hint{font-size:11px;color:var(--fg-3);margin-top:4px;line-height:1.4}
+  .dropzone{border:2px dashed var(--border);border-radius:12px;padding:28px;text-align:center;cursor:pointer;transition:all .15s;background:var(--bg-0)}
+  .dropzone:hover,.dropzone.dragover{border-color:var(--accent);background:rgba(99,102,241,0.04)}
+  .dropzone p{margin:0;color:var(--fg-2)}
+  .dropzone .file-name{color:var(--accent);font-weight:600;margin-top:6px}
+  .empty-state{text-align:center;padding:60px 20px;color:var(--fg-3)}
+  .empty-state h3{margin:0 0 8px;color:var(--fg-2);font-size:16px}
+  .empty-state p{margin:0;font-size:13px;max-width:400px;margin-left:auto;margin-right:auto;line-height:1.6}
+  .toast-container{position:fixed;bottom:20px;right:20px;z-index:200;display:flex;flex-direction:column;gap:8px}
+  .toast{background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;box-shadow:var(--shadow);display:flex;align-items:center;gap:10px;min-width:300px;animation:slideIn .3s ease}
+  @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+  .toast.success{border-left:3px solid var(--success)}
+  .toast.error{border-left:3px solid var(--danger)}
+  .toast.info{border-left:3px solid var(--info)}
+  .hidden{display:none!important}
+  .flex{display:flex}
+  .items-center{align-items:center}
+  .gap-2{gap:8px}
+  .gap-4{gap:16px}
+  .mb-4{margin-bottom:16px}
+  .mt-4{margin-top:16px}
+  .text-sm{font-size:12px}
+  .text-muted{color:var(--fg-3)}
+  .code-preview{background:var(--bg-0);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;white-space:pre;overflow:auto;max-height:280px;color:var(--fg-2);line-height:1.6}
+  .example-section{margin-bottom:16px}
+  .example-section h4{margin:0 0 8px;font-size:13px;color:var(--fg-2)}
+  .tag{display:inline-block;padding:2px 8px;border-radius:4px;background:var(--bg-3);color:var(--fg-2);font-size:11px;font-weight:600;margin-right:6px}
+  .spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+  .status-dot.green{background:var(--success)}
+  .status-dot.red{background:var(--danger)}
+  .status-dot.yellow{background:var(--warning)}
+  .download-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0}
+</style>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<base target="_blank">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h1>Cohort Tracker</h1>
+      <p>Multi-cohort dashboard</p>
+    </div>
+    <div class="cohort-list" id="cohortList">
+      <div class="empty-state" style="padding:30px 20px;">
+        <p>Loading cohorts...</p>
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="app.openNewCohortModal()">
+        <span>+</span> New Cohort
+      </button>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="app.loadDemoData()">
+        Load Demo Data
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <h2 id="currentCohortName" style="margin:0;font-size:16px">Select a cohort</h2>
+        <span id="currentCohortMeta" class="text-muted text-sm"></span>
+      </div>
+      <div class="topbar-right">
+        <div class="tabs" id="tabBar">
+          <button class="tab active" data-tab="master" onclick="app.switchTab('master')" style="background:var(--accent-dim);color:var(--accent-2);font-weight:700">⚡ Master Sheet</button>
+          <button class="tab" data-tab="mentee" onclick="app.switchTab('mentee')">Mentee Level</button>
+          <button class="tab" data-tab="module" onclick="app.switchTab('module')">Module Level</button>
+          <button class="tab" data-tab="session" onclick="app.switchTab('session')">Session Level</button>
+          <button class="tab" data-tab="buddy" onclick="app.switchTab('buddy')">Buddy Pairs</button>
+          <button class="tab" data-tab="house" onclick="app.switchTab('house')">House Level</button>
+          <button class="tab" data-tab="health" onclick="app.switchTab('health')">Health/Risk</button>
+          <button class="tab" data-tab="dashboard" onclick="app.switchTab('dashboard')">Dashboard</button>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="app.exportCurrentCohort()">Export JSON</button>
+        <button class="btn btn-danger btn-sm" onclick="app.deleteCurrentCohort()">Delete</button>
+      </div>
+    </div>
+    <div class="content" id="mainContent">
+      <div class="empty-state">
+        <h3>No Cohort Selected</h3>
+        <p>Create a new cohort using the sidebar, or load demo data to explore the interface.</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- New Cohort Modal -->
+<div class="modal-overlay" id="modalNewCohort">
+  <div class="modal">
+    <div class="modal-header"><h3>Create New Cohort</h3><button class="btn btn-sm btn-secondary" onclick="app.closeModal('modalNewCohort')">Close</button></div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Cohort Name *</label>
+        <input type="text" id="newCohortName" placeholder="e.g. Cohort 8" />
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <input type="text" id="newCohortDesc" placeholder="e.g. July 2026 intake" />
+      </div>
+      <div class="form-group">
+        <label>Initial Data (optional)</label>
+        <textarea id="newCohortData" placeholder="Paste JSON or CSV here, or leave blank"></textarea>
+        <p class="hint">Leave blank to start empty. You can always import data later via the Import button on each tab.</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="app.closeModal('modalNewCohort')">Cancel</button>
+      <button class="btn btn-primary" onclick="app.createCohort()">Create Cohort</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal-overlay" id="modalImport">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Import <span id="importTypeLabel">Data</span> into <span id="importCohortName"></span></h3>
+      <button class="btn btn-sm btn-secondary" onclick="app.closeModal('modalImport')">Close</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Import Mode</label>
+        <select id="importMode">
+          <option value="merge">Merge - Add new + update existing</option>
+          <option value="append">Append Only - Only add new records</option>
+          <option value="replace">Replace - Wipe existing and replace</option>
+        </select>
+        <p class="hint">Merge is recommended. It updates changed records without deleting anything.</p>
+      </div>
+      <div class="form-group">
+        <label>Data Type</label>
+        <select id="importType">
+          <option value="auto">Auto-detect</option>
+          <option value="mentees">Mentees</option>
+          <option value="sessions">Sessions / Lectures</option>
+          <option value="attendance">Attendance</option>
+          <option value="assignments">Assignments</option>
+          <option value="submissions">Submissions / Grades</option>
+          <option value="ratings">Session Ratings</option>
+          <option value="buddies">Buddy Pairs</option>
+          <option value="houses">Houses</option>
+          <option value="full">Full Cohort JSON</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Upload File</label>
+        <div class="dropzone" id="dropzone" onclick="document.getElementById('importFile').click()">
+          <p>Click to upload or drag & drop</p>
+          <p class="file-name" id="importFileName"></p>
+          <p class="hint">.xlsx, .xls, .csv, .json accepted</p>
+        </div>
+        <input type="file" id="importFile" class="hidden" accept=".json,.csv,.txt,.xlsx,.xls" onchange="app.handleFileSelect(event)" />
+      </div>
+      <div class="form-group">
+        <label>Or paste raw data</label>
+        <textarea id="importRaw" placeholder="Paste JSON or CSV content here..."></textarea>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button class="btn btn-ghost btn-sm" onclick="app.downloadCurrentSample()">⬇ Download Sample CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="app.showExampleModal()">See Example Format</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="app.closeModal('modalImport')">Cancel</button>
+      <button class="btn btn-primary" onclick="app.processImport()">Import Data</button>
+    </div>
+  </div>
+</div>
+
+<!-- Example Format Modal -->
+<div class="modal-overlay" id="modalExample">
+  <div class="modal" style="width:700px">
+    <div class="modal-header">
+      <h3>Example Format: <span id="exampleTypeLabel">Mentees</span></h3>
+      <button class="btn btn-sm btn-secondary" onclick="app.closeModal('modalExample')">Close</button>
+    </div>
+    <div class="modal-body">
+      <p class="hint mb-4">Your file should match this structure. Column names are auto-detected. Download the example file below and edit it with your data.</p>
+      <div id="exampleContent"></div>
+      <div class="mt-4" style="display:flex;gap:8px;flex-wrap:wrap" id="exampleDownloadLinks"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="app.closeModal('modalExample')">Got it</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal-overlay" id="modalDeleteConfirm">
+  <div class="modal" style="width:420px">
+    <div class="modal-header"><h3>⚠️ Confirm Delete</h3><button class="btn btn-sm btn-secondary" onclick="app.closeModal('modalDeleteConfirm')">Close</button></div>
+    <div class="modal-body">
+      <p id="deleteConfirmMsg" style="font-size:14px;line-height:1.6">Are you sure?</p>
+      <p class="hint" style="margin-top:8px">This action cannot be undone. All data in this cohort will be permanently deleted.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="app.closeModal('modalDeleteConfirm')">Cancel</button>
+      <button class="btn btn-danger" id="deleteConfirmBtn" onclick="app.confirmDeleteCohort()">Yes, Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+<script>
+// ===================== APP NAMESPACE =====================
+var app = {};
+app.db = null;
+app.currentCohortId = null;
+app.currentTab = 'master';
+app.pendingFileData = null;
+app.DB_NAME = 'CohortTrackerDB_v2';
+app.DB_VERSION = 1;
+
+// ===================== TOASTS =====================
+app.toast = function(msg, type) {
+  type = type || 'info';
+  var c = document.getElementById('toastContainer');
+  var el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.innerHTML = '<span>' + msg + '</span>';
+  c.appendChild(el);
+  setTimeout(function() { el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 300); }, 4000);
+};
+
+// ===================== MODALS =====================
+app.openModal = function(id) { document.getElementById(id).classList.add('open'); };
+app.closeModal = function(id) { document.getElementById(id).classList.remove('open'); };
+app.openNewCohortModal = function() { app.openModal('modalNewCohort'); };
+app.openImportModal = function(preferredType) {
+  if (!app.currentCohortId) { app.toast('Select a cohort first', 'error'); return; }
+  app.getCohort(app.currentCohortId).then(function(cohort) {
+    var name = cohort ? cohort.name : 'Current Cohort';
+    document.getElementById('importCohortName').textContent = name;
+    if (preferredType) {
+      document.getElementById('importType').value = preferredType;
+      document.getElementById('importTypeLabel').textContent = preferredType.charAt(0).toUpperCase() + preferredType.slice(1);
+    } else {
+      document.getElementById('importType').value = 'auto';
+      document.getElementById('importTypeLabel').textContent = 'Data';
+    }
+    app.openModal('modalImport');
+  });
+};
+
+// ===================== DATABASE =====================
+app.openDB = function() {
+  return new Promise(function(resolve, reject) {
+    var req = indexedDB.open(app.DB_NAME, app.DB_VERSION);
+    req.onerror = function() { reject(req.error); };
+    req.onsuccess = function() { app.db = req.result; resolve(app.db); };
+    req.onupgradeneeded = function(e) {
+      var d = e.target.result;
+      if (!d.objectStoreNames.contains('cohorts')) {
+        d.createObjectStore('cohorts', { keyPath: 'id' });
+      }
+    };
+  });
+};
+
+app.saveCohort = function(cohort) {
+  return new Promise(function(resolve, reject) {
+    var tx = app.db.transaction('cohorts', 'readwrite');
+    var store = tx.objectStore('cohorts');
+    cohort.updatedAt = new Date().toISOString();
+    var req = store.put(cohort);
+    req.onsuccess = function() { resolve(cohort); };
+    req.onerror = function() { reject(req.error); };
+  });
+};
+
+app.getCohort = function(id) {
+  return new Promise(function(resolve, reject) {
+    var tx = app.db.transaction('cohorts', 'readonly');
+    var store = tx.objectStore('cohorts');
+    var req = store.get(id);
+    req.onsuccess = function() { resolve(req.result); };
+    req.onerror = function() { reject(req.error); };
+  });
+};
+
+app.getAllCohorts = function() {
+  return new Promise(function(resolve, reject) {
+    var tx = app.db.transaction('cohorts', 'readonly');
+    var store = tx.objectStore('cohorts');
+    var req = store.getAll();
+    req.onsuccess = function() { resolve(req.result || []); };
+    req.onerror = function() { reject(req.error); };
+  });
+};
+
+app.deleteCohortDB = function(id) {
+  return new Promise(function(resolve, reject) {
+    var tx = app.db.transaction('cohorts', 'readwrite');
+    var store = tx.objectStore('cohorts');
+    var req = store.delete(id);
+    req.onsuccess = function() { resolve(); };
+    req.onerror = function() { reject(req.error); };
+  });
+};
+
+// ===================== DATA MODEL =====================
+app.createEmptyCohort = function(id, name, description) {
+  return {
+    id: id, name: name, description: description || '',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    mentees: [], sessions: [], assignments: [],
+    buddyPairs: [], houses: [],
+    attendance: {}, submissions: {}, checkins: {}
+  };
+};
+
+// ===================== COHORT MANAGEMENT =====================
+app.createCohort = function() {
+  var name = document.getElementById('newCohortName').value.trim();
+  var desc = document.getElementById('newCohortDesc').value.trim();
+  var raw = document.getElementById('newCohortData').value.trim();
+  if (!name) { app.toast('Cohort name is required', 'error'); return; }
+
+  var id = 'cohort_' + Date.now();
+  var cohort = app.createEmptyCohort(id, name, desc);
+
+  if (raw) {
+    try {
+      var parsed = app.parseImportData(raw, 'auto');
+      app.mergeDataIntoCohort(cohort, parsed, 'merge');
+    } catch(e) {
+      app.toast('Could not parse initial data: ' + e.message, 'error');
+      return;
+    }
+  }
+
+  app.saveCohort(cohort).then(function() {
+    app.closeModal('modalNewCohort');
+    document.getElementById('newCohortName').value = '';
+    document.getElementById('newCohortDesc').value = '';
+    document.getElementById('newCohortData').value = '';
+    app.toast('Cohort "' + name + '" created', 'success');
+    return app.renderCohortList();
+  }).then(function() {
+    app.selectCohort(id);
+  }).catch(function(e) {
+    app.toast('Error creating cohort: ' + e.message, 'error');
+  });
+};
+
+app.renderCohortList = function() {
+  return app.getAllCohorts().then(function(cohorts) {
+    var list = document.getElementById('cohortList');
+    list.innerHTML = '';
+    if (!cohorts.length) {
+      list.innerHTML = '<div class="empty-state" style="padding:30px 20px;"><p>No cohorts yet. Create one or load demo data.</p></div>';
+      return;
+    }
+    cohorts.sort(function(a, b) { return new Date(b.updatedAt) - new Date(a.updatedAt); });
+    cohorts.forEach(function(c) {
+      var div = document.createElement('div');
+      div.className = 'cohort-item' + (c.id === app.currentCohortId ? ' active' : '');
+      var infoDiv = document.createElement('div');
+      infoDiv.style.flex = '1';
+      infoDiv.style.minWidth = '0';
+      infoDiv.innerHTML = '<div style="font-weight:600">' + app.escapeHtml(c.name) + '</div><div class="cohort-meta">' + c.mentees.length + ' mentees · ' + app.escapeHtml(c.description || 'No description') + '</div>';
+      infoDiv.onclick = function() { app.selectCohort(c.id); };
+      var delBtn = document.createElement('button');
+      delBtn.className = 'cohort-delete-btn';
+      delBtn.title = 'Delete ' + c.name;
+      delBtn.innerHTML = '×';
+      delBtn.onclick = function(e) {
+        e.stopPropagation();
+        app.deleteCohortById(c.id, c.name);
+      };
+      div.appendChild(infoDiv);
+      div.appendChild(delBtn);
+      list.appendChild(div);
+    });
+  }).catch(function(e) {
+    app.toast('Error loading cohorts: ' + e.message, 'error');
+  });
+};
+
+app.selectCohort = function(id) {
+  app.currentCohortId = id;
+  app.getCohort(id).then(function(cohort) {
+    if (!cohort) { app.toast('Cohort not found', 'error'); return; }
+    document.getElementById('currentCohortName').textContent = cohort.name;
+    var lecCount = cohort.sessions.filter(function(s) { return s.type === 'lecture'; }).length;
+    document.getElementById('currentCohortMeta').textContent = cohort.mentees.length + ' mentees · ' + lecCount + ' lectures · ' + cohort.assignments.length + ' assignments';
+    return app.renderCohortList();
+  }).then(function() {
+    app.renderCurrentTab();
+  }).catch(function(e) {
+    app.toast('Error selecting cohort: ' + e.message, 'error');
+  });
+};
+
+app.deleteCurrentCohort = function() {
+  if (!app.currentCohortId) { app.toast('No cohort selected', 'error'); return; }
+  app.deleteCohortById(app.currentCohortId);
+};
+
+app._pendingDeleteId = null;
+app._pendingDeleteName = null;
+
+app.deleteCohortById = function(id, name) {
+  var showConfirm = function(cohortName) {
+    app._pendingDeleteId = id;
+    app._pendingDeleteName = cohortName;
+    document.getElementById('deleteConfirmMsg').textContent = 'Delete cohort "' + cohortName + '"?';
+    app.openModal('modalDeleteConfirm');
+  };
+  if (name) {
+    showConfirm(name);
+  } else {
+    app.getCohort(id).then(function(cohort) {
+      if (!cohort) { app.toast('Cohort not found', 'error'); return; }
+      showConfirm(cohort.name);
+    });
+  }
+};
+
+app.confirmDeleteCohort = function() {
+  var id = app._pendingDeleteId;
+  var cohortName = app._pendingDeleteName;
+  if (!id) return;
+  app.closeModal('modalDeleteConfirm');
+  app.deleteCohortDB(id).then(function() {
+    if (app.currentCohortId === id) {
+      app.currentCohortId = null;
+      document.getElementById('currentCohortName').textContent = 'Select a cohort';
+      document.getElementById('currentCohortMeta').textContent = '';
+      document.getElementById('mainContent').innerHTML = '<div class="empty-state"><h3>No Cohort Selected</h3><p>Create a new cohort or select one from the sidebar to get started.</p></div>';
+    }
+    return app.renderCohortList();
+  }).then(function() {
+    app.toast('Cohort "' + cohortName + '" deleted', 'info');
+    app._pendingDeleteId = null;
+    app._pendingDeleteName = null;
+  }).catch(function(e) {
+    app.toast('Error deleting cohort: ' + (e.message || e), 'error');
+  });
+};
+
+// ===================== UNIFIED MASTER CSV SYSTEM =====================
+// All data types in ONE sheet with a "section" column
+
+app.UNIFIED_HEADERS = [
+  'section','id','name','email','phone','path','track','profession','northstar','house',
+  'buildChallenge','lastActivity','date','title','module','type','menteeId','sessionId',
+  'present','rating','assignmentId','status','pod','m1','m2','checkin_W1','checkin_W2',
+  'checkin_W3','checkin_W4','checkin_W5','checkin_W6','mentor','menteeIds'
+];
+
+app.exportUnifiedCSV = function(cohort) {
+  var rows = [];
+  var pushRow = function(section, obj) {
+    var row = { section: section };
+    Object.keys(obj).forEach(function(k) {
+      if (app.UNIFIED_HEADERS.indexOf(k) >= 0) {
+        row[k] = obj[k];
+      }
+    });
+    rows.push(row);
+  };
+
+  // Mentees
+  cohort.mentees.forEach(function(m) {
+    pushRow('Mentees', {
+      id: m.id, name: m.name, email: m.email, phone: m.phone, path: m.path, track: m.track,
+      profession: m.profession, northstar: m.northstar, house: m.house,
+      buildChallenge: m.buildChallenge, lastActivity: m.lastActivity
+    });
+  });
+
+  // Sessions
+  cohort.sessions.forEach(function(s) {
+    pushRow('Sessions', { id: s.id, date: s.date, title: s.title, module: s.module, type: s.type });
+  });
+
+  // Attendance
+  Object.keys(cohort.attendance || {}).forEach(function(mid) {
+    Object.keys(cohort.attendance[mid]).forEach(function(sid) {
+      var rec = cohort.attendance[mid][sid];
+      pushRow('Attendance', {
+        menteeId: mid, sessionId: sid,
+        present: rec.present ? 'Present' : 'Absent',
+        rating: rec.rating != null ? rec.rating : ''
+      });
+    });
+  });
+
+  // Assignments
+  cohort.assignments.forEach(function(a) {
+    pushRow('Assignments', { id: a.id, title: a.title, date: a.date });
+  });
+
+  // Submissions
+  Object.keys(cohort.submissions || {}).forEach(function(mid) {
+    Object.keys(cohort.submissions[mid]).forEach(function(aid) {
+      pushRow('Submissions', {
+        menteeId: mid, assignmentId: aid, status: cohort.submissions[mid][aid]
+      });
+    });
+  });
+
+  // Buddy Pairs
+  cohort.buddyPairs.forEach(function(p) {
+    var row = { id: p.id || '', pod: p.pod || '', m1: p.m1 || '', m2: p.m2 || '' };
+    Object.keys(p.checkins || {}).forEach(function(w) {
+      row['checkin_' + w] = p.checkins[w];
+    });
+    pushRow('BuddyPods', row);
+  });
+
+  // Houses
+  cohort.houses.forEach(function(h) {
+    pushRow('Houses', {
+      name: h.name, mentor: h.mentor,
+      menteeIds: Array.isArray(h.mentees) ? h.mentees.join(',') : (h.mentees || '')
+    });
+  });
+
+  // Build CSV string
+  var headers = app.UNIFIED_HEADERS;
+  var lines = [headers.join(',')];
+  rows.forEach(function(r) {
+    var vals = headers.map(function(h) {
+      var v = r[h] != null ? String(r[h]) : '';
+      // Escape commas and quotes
+      if (v.indexOf(',') >= 0 || v.indexOf('"') >= 0 || v.indexOf('\n') >= 0) {
+        v = '"' + v.replace(/"/g, '""') + '"';
+      }
+      return v;
+    });
+    lines.push(vals.join(','));
+  });
+
+  return '\uFEFF' + lines.join('\n');
+};
+
+app.downloadUnifiedCSV = function() {
+  if (!app.currentCohortId) { app.toast('No cohort selected', 'error'); return; }
+  app.getCohort(app.currentCohortId).then(function(cohort) {
+    if (!cohort) { app.toast('Cohort not found', 'error'); return; }
+    var csv = app.exportUnifiedCSV(cohort);
+    var fileName = (cohort.name.replace(/\s+/g, '_')) + '_Unified_Master.csv';
+    app.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8' }), fileName);
+    app.toast('Downloaded ' + fileName, 'success');
+  });
+};
+
+app.downloadUnifiedSample = function() {
+  var lines = [];
+  lines.push(app.UNIFIED_HEADERS.join(','));
+  lines.push('Mentees,m_001,Aisha Khan,aisha@example.com,+92-300-1234567,Code,Employment,Student,Full-stack dev,Phoenix,Submitted,2026-08-05,,,,,,,,,,,,,,,,,,,,,');
+  lines.push('Mentees,m_002,Bilal Ahmed,bilal@example.com,+92-300-7654321,No-Code,Entrepreneurship,Freelancer,Launch SaaS,Dragon,Approved,2026-08-04,,,,,,,,,,,,,,,,,,,,,');
+  lines.push('Mentees,m_003,Fatima Noor,fatima@example.com,+92-300-1122334,Code,Employment,CS Graduate,Frontend Engineer,Phoenix,Not Submitted,2026-07-28,,,,,,,,,,,,,,,,,,,,,');
+  lines.push('Sessions,s1,,,,,,,,,,,2026-07-01,Orientation & Onboarding,Module 1,lecture,,,,,,,,,,,,,,,,,');
+  lines.push('Sessions,s2,,,,,,,,,,,2026-07-03,Office Hours - Week 1,Module 1,oh,,,,,,,,,,,,,,,,,');
+  lines.push('Attendance,,,,,,,,,,,,,,,,m_001,s1,Present,5,,,,,,,,,,,,,');
+  lines.push('Attendance,,,,,,,,,,,,,,,,m_001,s3,Present,4,,,,,,,,,,,,,');
+  lines.push('Attendance,,,,,,,,,,,,,,,,m_002,s1,Present,5,,,,,,,,,,,,,');
+  lines.push('Assignments,a1,,,,,,,,,,,,Build Challenge,2026-07-15,,,,,,,,,,,,,,,,,,');
+  lines.push('Assignments,a2,,,,,,,,,,,,Portfolio Site,2026-07-22,,,,,,,,,,,,,,,,,,');
+  lines.push('Submissions,,,,,,,,,,,,,,,,m_001,a1,Submitted,,,,,,,,,,,,,,');
+  lines.push('Submissions,,,,,,,,,,,,,,,,m_001,a2,Approved,,,,,,,,,,,,,,');
+  lines.push('Submissions,,,,,,,,,,,,,,,,m_002,a1,Approved,,,,,,,,,,,,,,');
+  lines.push('BuddyPods,bp1,,,,,,,,,,,,,,,,,,,1,Aisha Khan,Fatima Noor,Done,Done,Missed,,,,,');
+  lines.push('BuddyPods,bp2,,,,,,,,,,,,,,,,,,,2,Bilal Ahmed,Zara Malik,Done,Done,Done,,,,,');
+  lines.push('Houses,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Phoenix,Sarah Ali,"m_001,m_003"');
+  lines.push('Houses,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Dragon,Imran Khan,"m_002,m_005"');
+
+  var csv = '\uFEFF' + lines.join('\n');
+  app.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'Unified_Master_Sample.csv');
+  app.toast('Downloaded Unified_Master_Sample.csv', 'success');
+};
+
+// ===================== IMPORT SYSTEM =====================
+app.readFileUniversal = function(file, callback) {
+  var ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'xlsx' || ext === 'xls') {
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      try {
+        var wb = XLSX.read(ev.target.result, {type:'array', raw:true});
+        var multiData = { isExcelMultiSheet: true, sheets: {} };
+        wb.SheetNames.forEach(function(sheetName) {
+          var ws = wb.Sheets[sheetName];
+          var csvStr = XLSX.utils.sheet_to_csv(ws, {rawNumbers:false});
+          multiData.sheets[sheetName] = csvStr;
+        });
+        callback(JSON.stringify(multiData));
+      } catch(err) {
+        app.toast('Error reading Excel file: ' + err.message, 'error');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    var reader = new FileReader();
+    reader.onload = function(ev) { callback(ev.target.result); };
+    reader.readAsText(file);
+  }
+};
+
+app.handleFileSelect = function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  app.pendingFileData = null;
+  document.getElementById('importFileName').textContent = file.name;
+  app.readFileUniversal(file, function(data) { app.pendingFileData = data; });
+};
+
+app.parseCSVLine = function(line, delimiter) {
+  var result = []; var current = ''; var inQuotes = false;
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && i + 1 < line.length && line[i + 1] === '"') { current += '"'; i++; }
+      else if (ch === '"') { inQuotes = false; }
+      else { current += ch; }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === delimiter) { result.push(current.trim()); current = ''; }
+      else { current += ch; }
+    }
+  }
+  result.push(current.trim());
+  return result;
+};
+
+app.parseImportData = function(raw, type) {
+  raw = raw.trim();
+  if (!raw) throw new Error('No data provided');
+  if (raw.charAt(0) === '{' || raw.charAt(0) === '[') {
+    var parsed = JSON.parse(raw);
+    if (parsed.isExcelMultiSheet && parsed.sheets) {
+      return { kind: 'excel_multi', sheets: parsed.sheets };
+    }
+    if ((type === 'auto' || type === 'full') && parsed.mentees && parsed.sessions) {
+      return { kind: 'full', data: parsed };
+    }
+    if (type === 'full') return { kind: 'full', data: parsed };
+    return { kind: type === 'auto' ? 'unknown' : type, data: parsed };
+  }
+  if (raw.indexOf(',') >= 0 || raw.indexOf('\t') >= 0) {
+    var delimiter = raw.indexOf('\t') >= 0 && raw.split('\n')[0].indexOf('\t') >= 0 ? '\t' : ',';
+    var lines = raw.split(/\r?\n/).filter(function(l) { return l.trim(); });
+    if (lines.length < 2) throw new Error('CSV must have a header row and at least one data row');
+    var headers = app.parseCSVLine(lines[0], delimiter).map(function(h) { return h.replace(/^["\']|["\']$/g, '').replace(/^\uFEFF/, ''); });
+    var rows = lines.slice(1).map(function(line) {
+      var obj = {};
+      var values = app.parseCSVLine(line, delimiter);
+      headers.forEach(function(h, i) {
+        var val = values[i] !== undefined ? values[i] : '';
+        obj[h] = String(val);
+      });
+      return obj;
+    });
+    return { kind: type === 'auto' ? 'csv' : type, headers: headers, rows: rows };
+  }
+  throw new Error('Could not detect format. Please use JSON or CSV.');
+};
+
+app.normalizeMentee = function(row) {
+  var extractPhone = function(r) {
+    var keys = ['phone','Phone','PHONE','Phone Number','phone number','Phone number',
+      'PhoneNumber','phone_number','Mobile','mobile','Mobile Number','mobile number',
+      'Contact','contact','Contact Number','contact number','Cell','cell','Tel','tel',
+      'Telephone','telephone','WhatsApp','whatsapp','Whatsapp Number','Number','number',
+      'Phone No','phone no','Phone No.','phone no.','Mobile No','mobile no','Mobile No.',
+      'mobile no.','Contact No','contact no','Contact No.','contact no.'];
+    for (var i = 0; i < keys.length; i++) {
+      if (r[keys[i]] !== undefined && r[keys[i]] !== null && String(r[keys[i]]).trim() !== '') {
+        return String(r[keys[i]]).trim();
+      }
+    }
+    return '';
+  };
+  var rawId = row.id || row.menteeId || row.MenteeID || row.ID || row.Id || '';
+  var finalId = rawId ? ('m_' + String(rawId).replace(/^m_/, '')) : ('m_' + Math.random().toString(36).substr(2, 9));
+
+  var rawBC = String(row.buildChallenge || row['Build Challenge Status'] || row['Build Challenge'] || row['build challenge'] || row.BuildChallenge || '').trim();
+  var bcLower = rawBC.toLowerCase();
+  var buildChallenge = 'Not Submitted';
+  if (bcLower === 'yes' || bcLower === 'true' || bcLower === 'y' || bcLower === '1' || bcLower === 'submitted') buildChallenge = 'Submitted';
+  else if (bcLower === 'approved') buildChallenge = 'Approved';
+  else if (bcLower === 'rejected') buildChallenge = 'Rejected';
+  else if (bcLower === 'no' || bcLower === 'false' || bcLower === 'n' || bcLower === '0' || bcLower === '' || bcLower === 'not submitted') buildChallenge = 'Not Submitted';
+  else if (rawBC) buildChallenge = rawBC;
+
+  return {
+    id: finalId,
+    name: row.name || row.Name || row.menteeName || row['Full Name'] || row['full name'] || row.fullName || row.FullName || row['Student Name'] || row['student name'] || 'Unknown',
+    phone: extractPhone(row),
+    email: row.email || row.Email || row.EMAIL || row['Email Address'] || row['email address'] || row.emailAddress || '',
+    path: row.path || row.Path || row.trackPath || row.PATH || '',
+    track: row.track || row.Track || row.TRACK || '',
+    profession: row.profession || row.Profession || row.role || row.Role || row.Occupation || row.occupation || '',
+    northstar: row.northstar || row.Northstar || row.goal || row.Goal || row['Stated Goal'] || row['North Star'] || row['north star'] || '',
+    house: row.house || row.House || row.HOUSE || 'Unassigned',
+    buildChallenge: buildChallenge,
+    lastActivity: row.lastActivity || row['Last Activity Date'] || row['Last Activity'] || row['last activity'] || new Date().toISOString().split('T')[0]
+  };
+};
+
+app.normalizeSession = function(row) {
+  return {
+    id: row.id || row.sessionId || ('s_' + Math.random().toString(36).substr(2, 9)),
+    date: row.date || row.Date || row.sessionDate || '',
+    title: row.title || row.Title || row.sessionTitle || '',
+    module: row.module || row.Module || row.mod || 'General',
+    type: (row.type || row.Type || row.sessionType || 'lecture').toLowerCase()
+  };
+};
+
+app.normalizeAssignment = function(row) {
+  return {
+    id: row.id || row.assignmentId || ('a_' + Math.random().toString(36).substr(2, 9)),
+    title: row.title || row.Title || row.assignmentTitle || '',
+    date: row.date || row.Date || row.dueDate || ''
+  };
+};
+
+app.normalizeBuddyPair = function(row) {
+  var checkins = {};
+  Object.keys(row).forEach(function(k) {
+    if (k.indexOf('checkin_') === 0 || k.indexOf('checkin') === 0) {
+      var week = k.replace('checkin_', '').replace('checkin', '');
+      if (week) checkins[week] = row[k];
+    }
+  });
+  return {
+    id: row.id || row.pairId || ('bp_' + Math.random().toString(36).substr(2, 9)),
+    pod: row.pod || row.Pod || row.pod_number || row['Pod Number'] || row['pod number'] || row.Pod_Number || '',
+    m1: row.m1 || row.mentee1 || row['Mentee 1'] || '',
+    m2: row.m2 || row.mentee2 || row['Mentee 2'] || '',
+    checkins: checkins
+  };
+};
+
+app.normalizeHouse = function(row) {
+  var mentees = row.mentees || row.menteeIds || row.menteeList || [];
+  if (typeof mentees === 'string') {
+    mentees = mentees.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+  }
+  return {
+    name: row.name || row.houseName || row.House || '',
+    mentor: row.mentor || row.Mentor || row.mentorName || '',
+    mentees: mentees
+  };
+};
+
+app.detectCSVKind = function(rows, headers) {
+  var h = headers.map(function(x) { return x.toLowerCase(); });
+  if (h.some(function(x) { return x.indexOf('session') >= 0; }) && h.some(function(x) { return x.indexOf('date') >= 0; })) return 'sessions';
+  if (h.some(function(x) { return x.indexOf('assignment') >= 0 || x.indexOf('project') >= 0; })) return 'assignments';
+  if (h.some(function(x) { return x.indexOf('pair') >= 0 || x.indexOf('buddy') >= 0; })) return 'buddies';
+  if (h.some(function(x) { return x.indexOf('house') >= 0; })) return 'houses';
+  if (h.some(function(x) { return x.indexOf('present') >= 0 || x.indexOf('attendance') >= 0; })) return 'attendance';
+  if (h.some(function(x) { return x.indexOf('rating') >= 0 || x.indexOf('score') >= 0; })) return 'ratings';
+  if (h.some(function(x) { return x.indexOf('checkin') >= 0 || x.indexOf('week') >= 0; })) return 'checkins';
+  if (h.some(function(x) { return x.indexOf('status') >= 0 && (x.indexOf('submission') >= 0 || x.indexOf('assignment') >= 0); })) return 'submissions';
+  return 'mentees';
+};
+
+app.mergeDataIntoCohort = function(cohort, parsed, mode) {
+  if (parsed.kind === 'full' && parsed.data) {
+    var d = parsed.data;
+    if (mode === 'replace') {
+      if (d.mentees) cohort.mentees = d.mentees.map(app.normalizeMentee);
+      if (d.sessions) cohort.sessions = d.sessions.map(app.normalizeSession);
+      if (d.assignments) cohort.assignments = d.assignments.map(app.normalizeAssignment);
+      if (d.buddyPairs) cohort.buddyPairs = d.buddyPairs.map(app.normalizeBuddyPair);
+      if (d.houses) cohort.houses = d.houses.map(app.normalizeHouse);
+      if (d.attendance) cohort.attendance = d.attendance;
+      if (d.submissions) cohort.submissions = d.submissions;
+      if (d.checkins) cohort.checkins = d.checkins;
+    } else {
+      if (d.mentees) d.mentees.forEach(function(m) {
+        var nm = app.normalizeMentee(m);
+        var idx = cohort.mentees.findIndex(function(x) { return x.id === nm.id || x.email === nm.email; });
+        if (idx >= 0) cohort.mentees[idx] = Object.assign({}, cohort.mentees[idx], nm);
+        else cohort.mentees.push(nm);
+      });
+      if (d.sessions) d.sessions.forEach(function(s) {
+        var ns = app.normalizeSession(s);
+        var idx = cohort.sessions.findIndex(function(x) { return x.id === ns.id || (x.date === ns.date && x.title === ns.title); });
+        if (idx >= 0) cohort.sessions[idx] = Object.assign({}, cohort.sessions[idx], ns);
+        else cohort.sessions.push(ns);
+      });
+      if (d.assignments) d.assignments.forEach(function(a) {
+        var na = app.normalizeAssignment(a);
+        var idx = cohort.assignments.findIndex(function(x) { return x.id === na.id || x.title === na.title; });
+        if (idx >= 0) cohort.assignments[idx] = Object.assign({}, cohort.assignments[idx], na);
+        else cohort.assignments.push(na);
+      });
+      if (d.buddyPairs) d.buddyPairs.forEach(function(bp) {
+        var nb = app.normalizeBuddyPair(bp);
+        var idx = cohort.buddyPairs.findIndex(function(x) { return x.id === nb.id || (x.m1 === nb.m1 && x.m2 === nb.m2); });
+        if (idx >= 0) {
+          cohort.buddyPairs[idx] = Object.assign({}, cohort.buddyPairs[idx], nb);
+          if (nb.checkins) Object.assign(cohort.buddyPairs[idx].checkins, nb.checkins);
+        } else cohort.buddyPairs.push(nb);
+      });
+      if (d.houses) d.houses.forEach(function(h) {
+        var nh = app.normalizeHouse(h);
+        var idx = cohort.houses.findIndex(function(x) { return x.name === nh.name; });
+        if (idx >= 0) cohort.houses[idx] = Object.assign({}, cohort.houses[idx], nh);
+        else cohort.houses.push(nh);
+      });
+      if (d.attendance) {
+        if (!cohort.attendance) cohort.attendance = {};
+        Object.entries(d.attendance).forEach(function(entry) {
+          var mid = entry[0], sessMap = entry[1];
+          if (!cohort.attendance[mid]) cohort.attendance[mid] = {};
+          Object.entries(sessMap).forEach(function(se) {
+            var sid = se[0], val = se[1];
+            if (mode === 'append' && cohort.attendance[mid][sid]) return;
+            cohort.attendance[mid][sid] = val;
+          });
+        });
+      }
+      if (d.submissions) {
+        if (!cohort.submissions) cohort.submissions = {};
+        Object.entries(d.submissions).forEach(function(entry) {
+          var mid = entry[0], assMap = entry[1];
+          if (!cohort.submissions[mid]) cohort.submissions[mid] = {};
+          Object.entries(assMap).forEach(function(ae) {
+            var aid = ae[0], val = ae[1];
+            if (mode === 'append' && cohort.submissions[mid][aid]) return;
+            cohort.submissions[mid][aid] = val;
+          });
+        });
+      }
+      if (d.checkins) {
+        if (!cohort.checkins) cohort.checkins = {};
+        Object.entries(d.checkins).forEach(function(entry) {
+          var pid = entry[0], weekMap = entry[1];
+          if (!cohort.checkins[pid]) cohort.checkins[pid] = {};
+          Object.entries(weekMap).forEach(function(we) {
+            var wk = we[0], val = we[1];
+            if (mode === 'append' && cohort.checkins[pid][wk]) return;
+            cohort.checkins[pid][wk] = val;
+          });
+        });
+      }
+    }
+    return;
+  }
+
+  if (parsed.rows && parsed.headers) {
+    var h = parsed.headers.map(function(x) { return x.toLowerCase(); });
+
+    if (h.indexOf('section') >= 0) {
+      var sectionsFound = {};
+      parsed.rows.forEach(function(r) {
+        var sec = String(r.section || r.Section || r.SECTION || '').trim();
+        if (!sec) return;
+        if (!sectionsFound[sec]) sectionsFound[sec] = [];
+        sectionsFound[sec].push(r);
+      });
+
+      var stats = {mentees:0, sessions:0, attendance:0, assignments:0, submissions:0, buddies:0, houses:0};
+
+      if (sectionsFound['Mentees']) {
+        sectionsFound['Mentees'].forEach(function(r) {
+          var nm = app.normalizeMentee(r);
+          if (nm.name === 'Unknown' && !nm.email) return;
+          var idx = cohort.mentees.findIndex(function(x) { return x.id===nm.id || x.email===nm.email || x.name===nm.name; });
+          if (idx >= 0 && mode !== 'append') cohort.mentees[idx] = Object.assign({}, cohort.mentees[idx], nm);
+          else if (idx < 0) cohort.mentees.push(nm);
+          stats.mentees++;
+        });
+      }
+
+      if (sectionsFound['Sessions']) {
+        sectionsFound['Sessions'].forEach(function(r) {
+          var ns = app.normalizeSession(r);
+          if (!ns.title && !ns.date) return;
+          var idx = cohort.sessions.findIndex(function(x) { return x.id===ns.id || (x.date===ns.date && x.title===ns.title); });
+          if (idx >= 0 && mode !== 'append') cohort.sessions[idx] = Object.assign({}, cohort.sessions[idx], ns);
+          else if (idx < 0) cohort.sessions.push(ns);
+          stats.sessions++;
+        });
+      }
+
+      if (sectionsFound['Attendance']) {
+        if (!cohort.attendance) cohort.attendance = {};
+        sectionsFound['Attendance'].forEach(function(r) {
+          var mid = r.menteeId || r.mentee_id || r.MenteeID || r.email || r.id || '';
+          var sid = r.sessionId || r.session_id || r.SessionID || '';
+          if (!mid || !sid) return;
+          if (!cohort.attendance[mid]) cohort.attendance[mid] = {};
+          var status = String(r.present || r.Present || r.attendance || r.Attendance || '').trim().toLowerCase();
+          cohort.attendance[mid][sid] = {
+            present: status==='present' || status==='p' || status==='true' || status==='yes' || status==='y' || status==='1',
+            rating: (r.rating || r.Rating) ? parseFloat(r.rating || r.Rating) : null
+          };
+          stats.attendance++;
+        });
+      }
+
+      if (sectionsFound['Assignments']) {
+        sectionsFound['Assignments'].forEach(function(r) {
+          var na = app.normalizeAssignment(r);
+          if (!na.title) return;
+          var idx = cohort.assignments.findIndex(function(x) { return x.id===na.id || x.title===na.title; });
+          if (idx >= 0 && mode !== 'append') cohort.assignments[idx] = Object.assign({}, cohort.assignments[idx], na);
+          else if (idx < 0) cohort.assignments.push(na);
+          stats.assignments++;
+        });
+      }
+
+      if (sectionsFound['Submissions']) {
+        if (!cohort.submissions) cohort.submissions = {};
+        sectionsFound['Submissions'].forEach(function(r) {
+          var mid = r.menteeId || r.mentee_id || r.MenteeID || r.email || '';
+          var aid = r.assignmentId || r.assignment_id || r.AssignmentID || r.assignment || '';
+          if (!mid || !aid) return;
+          if (!cohort.submissions[mid]) cohort.submissions[mid] = {};
+          cohort.submissions[mid][aid] = r.status || r.Status || r.submissionStatus || 'Submitted';
+          stats.submissions++;
+        });
+      }
+
+      if (sectionsFound['BuddyPods'] || sectionsFound['Buddy Pairs'] || sectionsFound['Buddies']) {
+        var buddyRows = sectionsFound['BuddyPods'] || sectionsFound['Buddy Pairs'] || sectionsFound['Buddies'];
+        buddyRows.forEach(function(r) {
+          var nb = app.normalizeBuddyPair(r);
+          if (!nb.m1 && !nb.m2) return;
+          var idx = cohort.buddyPairs.findIndex(function(x) { return x.id===nb.id || (x.m1===nb.m1 && x.m2===nb.m2); });
+          if (idx >= 0) cohort.buddyPairs[idx] = Object.assign({}, cohort.buddyPairs[idx], nb);
+          else cohort.buddyPairs.push(nb);
+          stats.buddies++;
+        });
+      }
+
+      if (sectionsFound['Houses']) {
+        sectionsFound['Houses'].forEach(function(r) {
+          var nh = app.normalizeHouse(r);
+          if (!nh.name) return;
+          var idx = cohort.houses.findIndex(function(x) { return x.name===nh.name; });
+          if (idx >= 0) cohort.houses[idx] = Object.assign({}, cohort.houses[idx], nh);
+          else cohort.houses.push(nh);
+          stats.houses++;
+        });
+      }
+
+      var parts = [];
+      if (stats.mentees) parts.push(stats.mentees + ' mentees');
+      if (stats.sessions) parts.push(stats.sessions + ' sessions');
+      if (stats.attendance) parts.push(stats.attendance + ' attendance records');
+      if (stats.assignments) parts.push(stats.assignments + ' assignments');
+      if (stats.submissions) parts.push(stats.submissions + ' submissions');
+      if (stats.buddies) parts.push(stats.buddies + ' buddy pairs');
+      if (stats.houses) parts.push(stats.houses + ' houses');
+
+      if (!parts.length) {
+        throw new Error('No valid data sections found in unified file. Make sure rows have a "section" column (Mentees, Sessions, Attendance, Assignments, Submissions, BuddyPods, Houses).');
+      }
+      parsed._unifiedSummary = 'Unified import: ' + parts.join(', ');
+      return;
+    }
+  }
+
+  if (parsed.rows) {
+    var rows = parsed.rows;
+    var importType = document.getElementById('importType').value;
+    var kind = importType === 'auto' ? app.detectCSVKind(rows, parsed.headers) : importType;
+
+    if (kind === 'mentees') {
+      rows.forEach(function(r) {
+        var nm = app.normalizeMentee(r);
+        var idx = cohort.mentees.findIndex(function(x) { return x.id === nm.id || x.email === nm.email || x.name === nm.name; });
+        if (idx >= 0 && mode !== 'append') cohort.mentees[idx] = Object.assign({}, cohort.mentees[idx], nm);
+        else if (idx < 0) cohort.mentees.push(nm);
+      });
+    } else if (kind === 'sessions') {
+      rows.forEach(function(r) {
+        var ns = app.normalizeSession(r);
+        var idx = cohort.sessions.findIndex(function(x) { return x.id === ns.id || (x.date === ns.date && x.title === ns.title); });
+        if (idx >= 0 && mode !== 'append') cohort.sessions[idx] = Object.assign({}, cohort.sessions[idx], ns);
+        else if (idx < 0) cohort.sessions.push(ns);
+      });
+    } else if (kind === 'assignments') {
+      rows.forEach(function(r) {
+        var na = app.normalizeAssignment(r);
+        var idx = cohort.assignments.findIndex(function(x) { return x.id === na.id || x.title === na.title; });
+        if (idx >= 0 && mode !== 'append') cohort.assignments[idx] = Object.assign({}, cohort.assignments[idx], na);
+        else if (idx < 0) cohort.assignments.push(na);
+      });
+    } else if (kind === 'buddies') {
+      rows.forEach(function(r) {
+        var nb = app.normalizeBuddyPair(r);
+        var idx = cohort.buddyPairs.findIndex(function(x) { return x.id === nb.id || (x.m1 === nb.m1 && x.m2 === nb.m2); });
+        if (idx >= 0 && mode !== 'append') cohort.buddyPairs[idx] = Object.assign({}, cohort.buddyPairs[idx], nb);
+        else if (idx < 0) cohort.buddyPairs.push(nb);
+      });
+    } else if (kind === 'houses') {
+      rows.forEach(function(r) {
+        var nh = app.normalizeHouse(r);
+        var idx = cohort.houses.findIndex(function(x) { return x.name === nh.name; });
+        if (idx >= 0 && mode !== 'append') cohort.houses[idx] = Object.assign({}, cohort.houses[idx], nh);
+        else if (idx < 0) cohort.houses.push(nh);
+      });
+    } else if (kind === 'attendance') {
+      if (!cohort.attendance) cohort.attendance = {};
+      rows.forEach(function(r) {
+        var mid = r.menteeId || r.mentee_id || r.MenteeID || r.email || '';
+        var sid = r.sessionId || r.session_id || r.SessionID || '';
+        if (!mid || !sid) return;
+        if (!cohort.attendance[mid]) cohort.attendance[mid] = {};
+        if (mode === 'append' && cohort.attendance[mid][sid]) return;
+        var status = (r.present || r.Present || r.PRESENT || r.status || r.Status || r.STATUS || r.attendance || r.Attendance || '').toString().trim().toLowerCase();
+        cohort.attendance[mid][sid] = {
+          present: status === 'present' || status === 'p' || status === 'true' || status === 'yes' || status === 'y' || status === '1',
+          rating: (r.rating || r.Rating) ? parseFloat(r.rating || r.Rating) : null
+        };
+      });
+    } else if (kind === 'submissions') {
+      if (!cohort.submissions) cohort.submissions = {};
+      rows.forEach(function(r) {
+        var mid = r.menteeId || r.mentee_id || r.MenteeID || r.email || '';
+        var aid = r.assignmentId || r.assignment_id || r.AssignmentID || r.assignment || '';
+        if (!mid || !aid) return;
+        if (!cohort.submissions[mid]) cohort.submissions[mid] = {};
+        if (mode === 'append' && cohort.submissions[mid][aid]) return;
+        cohort.submissions[mid][aid] = r.status || r.Status || r.submissionStatus || 'Submitted';
+      });
+    } else if (kind === 'ratings') {
+      if (!cohort.attendance) cohort.attendance = {};
+      rows.forEach(function(r) {
+        var mid = r.menteeId || r.mentee_id || r.MenteeID || r.email || '';
+        var sid = r.sessionId || r.session_id || r.SessionID || '';
+        if (!mid || !sid) return;
+        if (!cohort.attendance[mid]) cohort.attendance[mid] = {};
+        if (!cohort.attendance[mid][sid]) cohort.attendance[mid][sid] = { present: true, rating: null };
+        if (mode === 'append' && cohort.attendance[mid][sid].rating != null) return;
+        cohort.attendance[mid][sid].rating = parseFloat(r.rating || r.Rating || r.score || 0) || null;
+      });
+    } else if (kind === 'checkins') {
+      if (!cohort.checkins) cohort.checkins = {};
+      rows.forEach(function(r) {
+        var pid = r.pairId || r.pair_id || r.PairID || '';
+        var week = r.week || r.Week || r.weekNumber || '';
+        if (!pid || !week) return;
+        if (!cohort.checkins[pid]) cohort.checkins[pid] = {};
+        if (mode === 'append' && cohort.checkins[pid][week]) return;
+        cohort.checkins[pid][week] = r.status || r.Status || r.checkinStatus || 'Done';
+      });
+    }
+  }
+};
+
+app.processImport = function() {
+  if (!app.currentCohortId) { app.toast('No cohort selected', 'error'); return; }
+  var raw = app.pendingFileData || document.getElementById('importRaw').value.trim();
+  if (!raw) { app.toast('No data to import', 'error'); return; }
+  var mode = document.getElementById('importMode').value;
+  var type = document.getElementById('importType').value;
+
+  app.getCohort(app.currentCohortId).then(function(cohort) {
+    var parsed = app.parseImportData(raw, type);
+    app.mergeDataIntoCohort(cohort, parsed, mode);
+    return app.saveCohort(cohort);
+  }).then(function() {
+    app.closeModal('modalImport');
+    app.pendingFileData = null;
+    document.getElementById('importFileName').textContent = '';
+    document.getElementById('importRaw').value = '';
+    document.getElementById('importFile').value = '';
+    app.toast('Data imported successfully', 'success');
+    return app.selectCohort(app.currentCohortId);
+  }).catch(function(e) {
+    app.toast('Import failed: ' + e.message, 'error');
+  });
+};
+
+app.exportCurrentCohort = function() {
+  if (!app.currentCohortId) { app.toast('No cohort selected', 'error'); return; }
+  app.getCohort(app.currentCohortId).then(function(cohort) {
+    var blob = new Blob([JSON.stringify(cohort, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = cohort.name.replace(/\s+/g, '_') + '_export.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    app.toast('Cohort exported', 'success');
+  }).catch(function(e) {
+    app.toast('Export failed: ' + e.message, 'error');
+  });
+};
+
+// ===================== EXAMPLE FORMATS =====================
+app.examples = {
+  mentees: {
+    desc: "One row per mentee. Columns are auto-detected by name.",
+    csv: "id,name,email,phone,path,track,profession,northstar,house,buildChallenge,lastActivity\n" +
+         "m1,Aisha Khan,aisha@example.com,+92-300-1234567,Code,Employment,Student,Full-stack dev,Phoenix,Submitted,2026-08-05\n" +
+         "m2,Bilal Ahmed,bilal@example.com,+92-300-7654321,No-Code,Entrepreneurship,Freelancer,Launch SaaS,Dragon,Approved,2026-08-04",
+    file: "example_mentees.csv"
+  },
+  sessions: {
+    desc: "One row per session. type can be 'lecture' or 'oh' (office hours).",
+    csv: "id,date,title,module,type\n" +
+         "s1,2026-07-01,Orientation & Onboarding,Module 1,lecture\n" +
+         "s2,2026-07-03,Office Hours - Week 1,Module 1,oh\n" +
+         "s3,2026-07-08,Intro to Web Dev,Module 1,lecture",
+    file: "example_sessions.csv"
+  },
+  attendance: {
+    desc: "One row per attendance record. present = Present/Absent/P/True. rating is optional (1-5).",
+    csv: "menteeId,sessionId,present,rating\n" +
+         "m1,s1,Present,5\n" +
+         "m1,s2,Present,\n" +
+         "m1,s3,Present,4\n" +
+         "m2,s1,Present,5\n" +
+         "m2,s2,Absent,",
+    file: "example_attendance.csv"
+  },
+  assignments: {
+    desc: "One row per assignment/project.",
+    csv: "id,title,date\n" +
+         "a1,Build Challenge,2026-07-15\n" +
+         "a2,Portfolio Site,2026-07-22\n" +
+         "a3,JS Calculator,2026-07-29",
+    file: "example_assignments.csv"
+  },
+  submissions: {
+    desc: "One row per submission. status = Submitted / Approved / Rejected / Not Submitted.",
+    csv: "menteeId,assignmentId,status\n" +
+         "m1,a1,Submitted\n" +
+         "m1,a2,Approved\n" +
+         "m2,a1,Approved\n" +
+         "m3,a1,Not Submitted",
+    file: "example_submissions.csv"
+  },
+  ratings: {
+    desc: "One row per rating. Same as attendance but focused on ratings.",
+    csv: "menteeId,sessionId,rating\n" +
+         "m1,s1,5\n" +
+         "m1,s3,4\n" +
+         "m2,s1,5",
+    file: "example_attendance.csv"
+  },
+  buddies: {
+    desc: "One row per buddy pair. Pod is the pod number. checkin_W1, checkin_W2 etc. for weekly check-ins.",
+    csv: "id,pod,m1,m2,checkin_W1,checkin_W2,checkin_W3\n" +
+         "bp1,1,Aisha Khan,Fatima Noor,Done,Done,Missed\n" +
+         "bp2,2,Bilal Ahmed,Zara Malik,Done,Done,Done",
+    file: "example_buddies.csv"
+  },
+  houses: {
+    desc: "One row per house. mentees can be comma-separated IDs or names.",
+    csv: "name,mentor,menteeIds\n" +
+         "Phoenix,Sarah Ali,\"m1,m3\"\n" +
+         "Dragon,Imran Khan,\"m2,m5\"\n" +
+         "Tiger,Ayesha B,\"m4,m6\"",
+    file: "example_houses.csv"
+  },
+  full: {
+    desc: "A complete JSON dump of the entire cohort. Use this for backup/restore.",
+    csv: '{\n  "mentees": [...],\n  "sessions": [...],\n  "assignments": [...],\n  "attendance": { "m1": { "s1": { "present": true, "rating": 5 } } },\n  "submissions": { "m1": { "a1": "Submitted" } },\n  "buddyPairs": [...],\n  "houses": [...]\n}',
+    file: "example_full.json"
+  }
+};
+
+app.downloadCurrentSample = function() {
+  var type = document.getElementById('importType').value;
+  if (type === 'auto') type = 'mentees';
+  app.downloadSampleCSV(type);
+};
+
+// ===================== FIXED DOWNLOAD SYSTEM =====================
+
+app.triggerDownload = function(dataOrBlob, fileName) {
+  try {
+    var blob;
+    if (dataOrBlob instanceof Blob) {
+      blob = dataOrBlob;
+    } else if (typeof dataOrBlob === 'string' && dataOrBlob.indexOf('data:') === 0) {
+      var arr = dataOrBlob.split(',');
+      var mimeMatch = arr[0].match(/:(.*?);/);
+      var mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+      var bstr = atob(arr[1]);
+      var n = bstr.length;
+      var u8arr = new Uint8Array(n);
+      for (var i = 0; i < n; i++) {
+        u8arr[i] = bstr.charCodeAt(i);
+      }
+      blob = new Blob([u8arr], { type: mime });
+    } else {
+      blob = new Blob([dataOrBlob], { type: 'text/plain;charset=utf-8' });
+    }
+
+    if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+      window.navigator.msSaveOrOpenBlob(blob, fileName);
+      return;
+    }
+
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+
+    var event = document.createEvent('MouseEvents');
+    event.initEvent('click', true, true);
+    link.dispatchEvent(event);
+
+    setTimeout(function() {
+      URL.revokeObjectURL(url);
+      if (link.parentNode) link.parentNode.removeChild(link);
+    }, 2000);
+  } catch(e) {
+    console.error('Download error:', e);
+    app.toast('Download failed: ' + e.message, 'error');
+  }
+};
+
+app.downloadSampleCSV = function(type) {
+  var ex = app.examples[type];
+  if (!ex) { app.toast('No example available for type: ' + type, 'error'); return; }
+  var isJSON = ex.file.endsWith('.json');
+  var mimeType = isJSON ? 'application/json' : 'text/csv';
+  var content = isJSON ? ex.csv : '\uFEFF' + ex.csv;
+  var blob = new Blob([content], { type: mimeType + ';charset=utf-8' });
+  app.triggerDownload(blob, ex.file);
+  app.toast('Downloaded ' + ex.file, 'success');
+};
+
+app.showExampleModal = function() {
+  var type = document.getElementById('importType').value;
+  if (type === 'auto') type = 'mentees';
+  var ex = app.examples[type];
+  if (!ex) ex = app.examples.mentees;
+  document.getElementById('exampleTypeLabel').textContent = type.charAt(0).toUpperCase() + type.slice(1);
+  var content = '<div class="example-section"><h4>Required Columns</h4><p class="hint">' + ex.desc + '</p></div>';
+  content += '<div class="example-section"><h4>Example CSV / JSON</h4><div class="code-preview">' + app.escapeHtml(ex.csv) + '</div></div>';
+  document.getElementById('exampleContent').innerHTML = content;
+
+  var links = '';
+  Object.keys(app.examples).forEach(function(k) {
+    var ek = app.examples[k];
+    links += '<button class="btn btn-ghost btn-sm" onclick="app.downloadSampleCSV(\'' + k + '\')" style="cursor:pointer">⬇ ' + k + ' sample</button>';
+  });
+  document.getElementById('exampleDownloadLinks').innerHTML = links;
+  app.openModal('modalExample');
+};
+
+// ===================== RENDER HELPERS =====================
+app.escapeHtml = function(t) {
+  if (t == null) return '';
+  return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+};
+
+app.switchTab = function(tab) {
+  app.currentTab = tab;
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t.dataset.tab === tab); });
+  app.renderCurrentTab();
+};
+
+app.renderCurrentTab = function() {
+  if (!app.currentCohortId) return;
+  app.getCohort(app.currentCohortId).then(function(cohort) {
+    if (!cohort) return;
+    var container = document.getElementById('mainContent');
+    switch(app.currentTab) {
+      case 'master': container.innerHTML = app.renderMasterTab(cohort); break;
+      case 'mentee': container.innerHTML = app.renderMenteeTab(cohort); break;
+      case 'module': container.innerHTML = app.renderModuleTab(cohort); break;
+      case 'session': container.innerHTML = app.renderSessionTab(cohort); break;
+      case 'buddy': container.innerHTML = app.renderBuddyTab(cohort); break;
+      case 'house': container.innerHTML = app.renderHouseTab(cohort); break;
+      case 'health': container.innerHTML = app.renderHealthTab(cohort); break;
+      case 'dashboard': container.innerHTML = app.renderDashboardTab(cohort); break;
+      default: container.innerHTML = app.renderDashboardTab(cohort);
+    }
+  }).catch(function(e) {
+    app.toast('Error rendering tab: ' + e.message, 'error');
+  });
+};
+
+app.getAttendance = function(cohort, mId, filterFn) {
+  var relevant = cohort.sessions.filter(filterFn);
+  if (!relevant.length) return 0;
+  var present = relevant.filter(function(s) {
+    return cohort.attendance[mId] && cohort.attendance[mId][s.id] && cohort.attendance[mId][s.id].present;
+  }).length;
+  return Math.round((present / relevant.length) * 100);
+};
+
+app.getAvgRating = function(cohort, mId, filterFn) {
+  var relevant = cohort.sessions.filter(filterFn);
+  var ratings = relevant.map(function(s) {
+    return cohort.attendance[mId] && cohort.attendance[mId][s.id] ? cohort.attendance[mId][s.id].rating : null;
+  }).filter(function(r) { return r != null && !isNaN(r); });
+  if (!ratings.length) return '-';
+  return (ratings.reduce(function(a, b) { return a + b; }, 0) / ratings.length).toFixed(1);
+};
+
+app.getSubmissionStatus = function(cohort, mId, aId) {
+  return (cohort.submissions[mId] && cohort.submissions[mId][aId]) ? cohort.submissions[mId][aId] : 'Not Submitted';
+};
+
+app.getTripwire = function(cohort, m) {
+  var totalAtt = app.getAttendance(cohort, m.id, function() { return true; });
+  var projTotal = cohort.assignments.length;
+  var projDone = cohort.assignments.filter(function(a) {
+    return ['Submitted', 'Approved'].indexOf(app.getSubmissionStatus(cohort, m.id, a.id)) >= 0;
+  }).length;
+  var projPct = projTotal ? Math.round((projDone / projTotal) * 100) : 0;
+  var daysSince = Math.floor((new Date() - new Date(m.lastActivity || Date.now())) / (1000 * 60 * 60 * 24));
+  if (totalAtt < 70 || projPct < 60 || daysSince > 7) return 'Y';
+  return 'N';
+};
+
+app.getLastAttendedDate = function(cohort, mId) {
+  var attended = cohort.sessions.filter(function(s) {
+    return cohort.attendance[mId] && cohort.attendance[mId][s.id] && cohort.attendance[mId][s.id].present;
+  });
+  if (!attended.length) return '-';
+  return attended.sort(function(a, b) { return new Date(b.date) - new Date(a.date); })[0].date;
+};
+
+app.getLastSubmissionDate = function(cohort, mId) {
+  var m = cohort.mentees.find(function(x) { return x.id === mId; });
+  return m ? (m.lastActivity || '-') : '-';
+};
+
+// ===================== TAB RENDERERS =====================
+app.renderMenteeTab = function(c) {
+  var lectures = c.sessions.filter(function(s) { return s.type === 'lecture'; }).sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
+  var oh = c.sessions.filter(function(s) { return s.type === 'oh'; }).sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
+  var assignments = c.assignments.sort(function(a, b) { return new Date(a.date || 0) - new Date(b.date || 0); });
+
+  var html = '<div class="panel">';
+  html += '<div class="panel-header"><div class="panel-title">Mentee Level Tracker</div>';
+  html += '<div class="panel-actions"><input type="text" class="search-box" id="menteeSearch" placeholder="Search mentees..." onkeyup="app.filterTable(\'menteeTable\')" />';
+  html += '<span class="hint" style="font-size:11px">Use Master Sheet to add/update data</span></div></div>';
+  html += '<div class="table-wrap"><table class="data-table" id="menteeTable"><thead><tr>';
+  html += '<th>Name</th><th>Phone</th><th>Email</th><th>Path</th><th>Track</th><th>Profession</th><th>Northstar</th><th>House</th><th>Build Challenge</th><th>Attend %</th><th>Project %</th>';
+  lectures.forEach(function(s) { html += '<th>' + s.date + '<br/><span style="font-weight:400;font-size:11px">' + app.escapeHtml(s.title) + '</span></th>'; });
+  oh.forEach(function(s) { html += '<th>' + s.date + '<br/><span style="font-weight:400;font-size:11px">' + app.escapeHtml(s.title) + '</span></th>'; });
+  assignments.forEach(function(a) { html += '<th>' + (a.date || '') + '<br/><span style="font-weight:400;font-size:11px">' + app.escapeHtml(a.title) + '</span></th>'; });
+  lectures.forEach(function(s) { html += '<th>Rate<br/>' + s.date + '</th>'; });
+  html += '<th>Last Activity</th></tr></thead><tbody>';
+
+  c.mentees.forEach(function(m) {
+    var totalAtt = app.getAttendance(c, m.id, function() { return true; });
+    var projTotal = assignments.length;
+    var projDone = assignments.filter(function(a) { return ['Submitted', 'Approved'].indexOf(app.getSubmissionStatus(c, m.id, a.id)) >= 0; }).length;
+    var projPct = projTotal ? Math.round((projDone / projTotal) * 100) : 0;
+    html += '<tr><td><strong>' + app.escapeHtml(m.name) + '</strong></td>';
+    html += '<td>' + app.escapeHtml(m.phone) + '</td>';
+    html += '<td>' + app.escapeHtml(m.email) + '</td>';
+    html += '<td><span class="badge badge-submitted">' + m.path + '</span></td>';
+    html += '<td>' + m.track + '</td>';
+    html += '<td>' + app.escapeHtml(m.profession) + '</td>';
+    html += '<td>' + app.escapeHtml(m.northstar) + '</td>';
+    html += '<td>' + app.escapeHtml(m.house) + '</td>';
+    html += '<td><span class="badge badge-' + (m.buildChallenge || '').toLowerCase().replace(/\s/g, '') + '">' + (m.buildChallenge || 'Not Submitted') + '</span></td>';
+    html += '<td><strong>' + totalAtt + '%</strong></td>';
+    html += '<td><strong>' + projPct + '%</strong></td>';
+    lectures.forEach(function(s) {
+      var p = c.attendance[m.id] && c.attendance[m.id][s.id] ? c.attendance[m.id][s.id].present : false;
+      html += '<td><span class="badge badge-' + (p ? 'present' : 'absent') + '">' + (p ? 'P' : 'A') + '</span></td>';
+    });
+    oh.forEach(function(s) {
+      var p = c.attendance[m.id] && c.attendance[m.id][s.id] ? c.attendance[m.id][s.id].present : false;
+      html += '<td><span class="badge badge-' + (p ? 'present' : 'absent') + '">' + (p ? 'P' : 'A') + '</span></td>';
+    });
+    assignments.forEach(function(a) {
+      var st = app.getSubmissionStatus(c, m.id, a.id);
+      html += '<td><span class="badge badge-' + st.toLowerCase().replace(/\s/g, '') + '">' + st + '</span></td>';
+    });
+    lectures.forEach(function(s) {
+      var r = c.attendance[m.id] && c.attendance[m.id][s.id] ? c.attendance[m.id][s.id].rating : null;
+      html += '<td>' + (r != null ? r : '-') + '</td>';
+    });
+    html += '<td>' + (m.lastActivity || '-') + '</td></tr>';
+  });
+  html += '</tbody></table></div></div>';
+  return html;
+};
+
+app.renderModuleTab = function(c) {
+  var modules = [];
+  c.sessions.filter(function(s) { return s.type === 'lecture'; }).forEach(function(s) { if (modules.indexOf(s.module) < 0) modules.push(s.module); });
+  var html = '<div class="panel"><div class="panel-header"><div class="panel-title">Module Level Summary</div>';
+  html += '<div class="panel-actions"><span class="hint" style="font-size:11px">Use Master Sheet to add/update data</span></div></div>';
+  html += '<div class="table-wrap"><table class="data-table"><thead><tr><th>Mentee</th>';
+  modules.forEach(function(mod) { html += '<th>' + mod + ' Attendance</th><th>' + mod + ' Project %</th><th>' + mod + ' Avg Rating</th>'; });
+  html += '</tr></thead><tbody>';
+  c.mentees.forEach(function(m) {
+    html += '<tr><td><strong>' + app.escapeHtml(m.name) + '</strong></td>';
+    modules.forEach(function(mod) {
+      var att = app.getAttendance(c, m.id, function(s) { return s.module === mod && s.type === 'lecture'; });
+      var rat = app.getAvgRating(c, m.id, function(s) { return s.module === mod && s.type === 'lecture'; });
+      var projTotal = c.assignments.length;
+      var projDone = c.assignments.filter(function(a) { return ['Submitted', 'Approved'].indexOf(app.getSubmissionStatus(c, m.id, a.id)) >= 0; }).length;
+      var projPct = projTotal ? Math.round((projDone / projTotal) * 100) : 0;
+      html += '<td>' + att + '%</td><td>' + projPct + '%</td><td>' + rat + '</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+  return html;
+};
+
+app.renderSessionTab = function(c) {
+  var lectures = c.sessions.filter(function(s) { return s.type === 'lecture'; }).sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
+  var html = '<div class="panel"><div class="panel-header"><div class="panel-title">Session Level Summary</div>';
+  html += '<div class="panel-actions"><span class="hint" style="font-size:11px">Use Master Sheet to add/update data</span></div></div>';
+  html += '<div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Module</th><th>Title</th><th>Attendance %</th><th>Avg Rating</th></tr></thead><tbody>';
+  lectures.forEach(function(s) {
+    var present = c.mentees.filter(function(m) { return c.attendance[m.id] && c.attendance[m.id][s.id] && c.attendance[m.id][s.id].present; }).length;
+    var att = c.mentees.length ? Math.round((present / c.mentees.length) * 100) : 0;
+    var ratings = c.mentees.map(function(m) { return c.attendance[m.id] && c.attendance[m.id][s.id] ? c.attendance[m.id][s.id].rating : null; }).filter(function(r) { return r != null && !isNaN(r); });
+    var avg = ratings.length ? (ratings.reduce(function(a, b) { return a + b; }, 0) / ratings.length).toFixed(1) : '-';
+    html += '<tr><td>' + s.date + '</td><td>' + app.escapeHtml(s.module) + '</td><td>' + app.escapeHtml(s.title) + '</td><td><strong>' + att + '%</strong></td><td>' + avg + '</td></tr>';
+  });
+  html += '</tbody></table></div></div>';
+  return html;
+};
+
+app.renderBuddyTab = function(c) {
+  var pairs = c.buddyPairs;
+  if (!pairs.length) {
+    return '<div class="panel"><div class="panel-header"><div class="panel-title">Buddy Pairs &amp; Check-ins</div>'
+    + '<div class="panel-actions"><span class="hint" style="font-size:11px">Use Master Sheet to add buddy pairs</span></div></div>'
+    + '<div class="empty-state" style="padding:40px"><p>No buddy pairs yet. Import buddy pair data via the Master Sheet.</p></div></div>';
+  }
+  var allWeeks = new Set();
+  pairs.forEach(function(p) { Object.keys(p.checkins || {}).forEach(function(w) { allWeeks.add(w); }); });
+  var weeks = Array.from(allWeeks).sort();
+  var html = '<div class="panel"><div class="panel-header"><div class="panel-title">Buddy Pairs & Check-ins</div>';
+  html += '<div class="panel-actions"><span class="hint" style="font-size:11px">Use Master Sheet to add/update data</span></div></div>';
+  html += '<div class="table-wrap"><table class="data-table"><thead><tr><th>Pod Number</th><th>Mentee 1</th><th>Mentee 2</th>';
+  weeks.forEach(function(w) { html += '<th>' + w + ' Check-in</th>'; });
+  html += '</tr></thead><tbody>';
+  pairs.forEach(function(p, idx) {
+    var podNum = p.pod || (idx + 1);
+    html += '<tr><td><strong>Pod ' + podNum + '</strong></td><td>' + app.escapeHtml(p.m1) + '</td><td>' + app.escapeHtml(p.m2) + '</td>';
+    weeks.forEach(function(w) {
+      var st = (p.checkins || {})[w] || 'Pending';
+      var cls = st === 'Done' ? 'badge-approved' : st === 'Missed' ? 'badge-rejected' : 'badge-pending';
+      html += '<td><span class="badge ' + cls + '">' + st + '</span></td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+  return html;
+};
+
+app.renderHouseTab = function(c) {
+  var html = '<div class="panel"><div class="panel-header"><div class="panel-title">House Level Summary</div>';
+  html += '<div class="panel-actions"><span class="hint" style="font-size:11px">Use Master Sheet to add/update data</span></div></div>';
+  html += '<div class="table-wrap"><table class="data-table"><thead><tr><th>House Name</th><th>Mentor</th><th># Mentees</th><th>Avg Attendance %</th><th>Avg Rating</th></tr></thead><tbody>';
+  c.houses.forEach(function(h) {
+    var houseMentees = c.mentees.filter(function(m) {
+      if (Array.isArray(h.mentees)) return h.mentees.indexOf(m.id) >= 0 || h.mentees.indexOf(m.name) >= 0;
+      return m.house === h.name;
+    });
+    var avgAtt = houseMentees.length ? Math.round(houseMentees.reduce(function(a, m) { return a + app.getAttendance(c, m.id, function() { return true; }); }, 0) / houseMentees.length) : 0;
+    var allRatings = [];
+    houseMentees.forEach(function(m) {
+      c.sessions.filter(function(s) { return s.type === 'lecture'; }).forEach(function(s) {
+        var r = c.attendance[m.id] && c.attendance[m.id][s.id] ? c.attendance[m.id][s.id].rating : null;
+        if (r != null && !isNaN(r)) allRatings.push(r);
+      });
+    });
+    var avgRat = allRatings.length ? (allRatings.reduce(function(a, b) { return a + b; }, 0) / allRatings.length).toFixed(1) : '-';
+    html += '<tr><td><strong>' + app.escapeHtml(h.name) + '</strong></td><td>' + app.escapeHtml(h.mentor) + '</td><td>' + houseMentees.length + '</td><td><strong>' + avgAtt + '%</strong></td><td>' + avgRat + '</td></tr>';
+  });
+  html += '</tbody></table></div></div>';
+  return html;
+};
+
+app.renderHealthTab = function(c) {
+  var html = '<div class="panel"><div class="panel-header"><div class="panel-title">Health / Risk Snapshot</div>';
+  html += '<div class="panel-actions"><span class="hint" style="font-size:11px">Use Master Sheet to add/update data</span></div></div>';
+  html += '<div class="table-wrap"><table class="data-table"><thead><tr>';
+  html += '<th>Mentee</th><th>Lecture Att %</th><th>OH Att %</th><th>Projects Done</th><th>Projects Total</th><th>Project %</th>';
+  html += '<th>Rejected / Unreviewed</th><th>Feedback Rate</th><th>Avg Lecture Rating</th><th>Avg OH Rating</th>';
+  html += '<th>Last Attended</th><th>Last Submission</th><th>Last Activity</th><th>Days Since</th><th>Tripwire</th>';
+  html += '</tr></thead><tbody>';
+  c.mentees.forEach(function(m) {
+    var lecAtt = app.getAttendance(c, m.id, function(s) { return s.type === 'lecture'; });
+    var ohAtt = app.getAttendance(c, m.id, function(s) { return s.type === 'oh'; });
+    var projTotal = c.assignments.length;
+    var projDone = c.assignments.filter(function(a) { return ['Submitted', 'Approved'].indexOf(app.getSubmissionStatus(c, m.id, a.id)) >= 0; }).length;
+    var projPct = projTotal ? Math.round((projDone / projTotal) * 100) : 0;
+    var rejected = c.assignments.filter(function(a) { return ['Rejected', 'Not Submitted'].indexOf(app.getSubmissionStatus(c, m.id, a.id)) >= 0; }).length;
+    var lecRat = app.getAvgRating(c, m.id, function(s) { return s.type === 'lecture'; });
+    var ohRat = app.getAvgRating(c, m.id, function(s) { return s.type === 'oh'; });
+    var lastAtt = app.getLastAttendedDate(c, m.id);
+    var lastSub = app.getLastSubmissionDate(c, m.id);
+    var daysSince = Math.floor((new Date() - new Date(m.lastActivity || Date.now())) / (1000 * 60 * 60 * 24));
+    var tw = app.getTripwire(c, m);
+    html += '<tr>';
+    html += '<td><strong>' + app.escapeHtml(m.name) + '</strong></td>';
+    html += '<td>' + lecAtt + '%</td><td>' + ohAtt + '%</td><td>' + projDone + '</td><td>' + projTotal + '</td><td>' + projPct + '%</td>';
+    html += '<td>' + rejected + '</td><td>-</td><td>' + lecRat + '</td><td>' + ohRat + '</td>';
+    html += '<td>' + lastAtt + '</td><td>' + lastSub + '</td><td>' + (m.lastActivity || '-') + '</td><td>' + daysSince + '</td>';
+    html += '<td><span class="badge badge-' + (tw === 'Y' ? 'tripwire' : 'safe') + '">' + tw + '</span></td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+  return html;
+};
+
+app.renderDashboardTab = function(c) {
+  var total = c.mentees.length;
+  var allProjectsDone = c.mentees.filter(function(m) {
+    var projTotal = c.assignments.length;
+    var projDone = c.assignments.filter(function(a) { return ['Submitted', 'Approved'].indexOf(app.getSubmissionStatus(c, m.id, a.id)) >= 0; }).length;
+    return projTotal > 0 && projDone === projTotal;
+  }).length;
+  var capstonesApproved = c.mentees.filter(function(m) { return (m.buildChallenge || '').toLowerCase() === 'approved'; }).length;
+  var completionPct = total ? Math.round((capstonesApproved / total) * 100) : 0;
+  var atRisk = c.mentees.filter(function(m) { return app.getTripwire(c, m) === 'Y'; }).length;
+  var active = total - atRisk;
+
+  var html = '<div class="grid grid-4 mb-4">';
+  html += '<div class="kpi-card"><div class="kpi-value">' + total + '</div><div class="kpi-label">Total Mentees</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-value success">' + allProjectsDone + '</div><div class="kpi-label">All Projects Done</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-value">' + capstonesApproved + '</div><div class="kpi-label">Capstones Approved</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-value">' + completionPct + '%</div><div class="kpi-label">Completion Rate</div><div class="progress-bar"><div class="progress-fill" style="width:' + completionPct + '%"></div></div></div>';
+  html += '<div class="kpi-card"><div class="kpi-value danger">' + atRisk + '</div><div class="kpi-label">At Risk</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-value success">' + active + '</div><div class="kpi-label">Active</div></div>';
+  html += '</div>';
+
+  html += '<div class="panel"><div class="panel-header"><div class="panel-title">Project / Assignment Backlog</div>';
+  html += '<div class="panel-actions"><span class="hint" style="font-size:11px">Use Master Sheet to add/update data</span></div></div>';
+  html += '<div class="table-wrap"><table class="data-table"><thead><tr><th>Assignment</th><th>Submission Rate</th><th>Approval Rate</th><th>Unreviewed Rate</th></tr></thead><tbody>';
+  c.assignments.forEach(function(a) {
+    var subs = c.mentees.filter(function(m) { return app.getSubmissionStatus(c, m.id, a.id) !== 'Not Submitted'; }).length;
+    var appr = c.mentees.filter(function(m) { return app.getSubmissionStatus(c, m.id, a.id) === 'Approved'; }).length;
+    var unrev = c.mentees.filter(function(m) { return app.getSubmissionStatus(c, m.id, a.id) === 'Submitted'; }).length;
+    html += '<tr>';
+    html += '<td><strong>' + app.escapeHtml(a.title) + '</strong> <span class="text-muted text-sm">(' + (a.date || 'no date') + ')</span></td>';
+    html += '<td><strong>' + (total ? Math.round((subs / total) * 100) : 0) + '%</strong></td>';
+    html += '<td><strong>' + (total ? Math.round((appr / total) * 100) : 0) + '%</strong></td>';
+    html += '<td><strong>' + (total ? Math.round((unrev / total) * 100) : 0) + '%</strong> <span class="text-muted text-sm">(' + unrev + ' pending)</span></td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+  return html;
+};
+
+// ===================== MASTER SHEET =====================
+app.renderMasterTab = function(c) {
+  var attCount = 0;
+  Object.keys(c.attendance || {}).forEach(function(mid) { attCount += Object.keys(c.attendance[mid]).length; });
+  var subCount = 0;
+  Object.keys(c.submissions || {}).forEach(function(mid) { subCount += Object.keys(c.submissions[mid]).length; });
+
+  var html = '<div class="panel">';
+  html += '<div class="panel-header"><div class="panel-title" style="color:var(--accent-2)">⚡ Master Sheet — All-In-One Data Management</div></div>';
+  html += '<p class="hint mb-4" style="font-size:13px;line-height:1.7;max-width:720px">This is the <strong>single source of truth</strong>. Use the <strong>Unified Master CSV</strong> below to download ONE file containing every section. Edit it in Excel or Google Sheets, then upload it back. Only the sections you include will be updated — everything else stays exactly as it is.</p>';
+
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:24px">';
+  html += '<div class="kpi-card"><div class="kpi-value">' + c.mentees.length + '</div><div class="kpi-label">Mentees</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-value">' + c.sessions.length + '</div><div class="kpi-label">Sessions</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-value">' + attCount + '</div><div class="kpi-label">Attendance Records</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-value">' + c.assignments.length + '</div><div class="kpi-label">Assignments</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-value">' + subCount + '</div><div class="kpi-label">Submissions</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-value">' + c.buddyPairs.length + '</div><div class="kpi-label">Buddy Pods</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-value">' + c.houses.length + '</div><div class="kpi-label">Houses</div></div>';
+  html += '</div>';
+
+  html += '<div class="panel mb-4" style="background:var(--bg-2);border:1px solid var(--border)">';
+  html += '<div class="panel-title" style="font-size:15px;color:var(--accent-2);margin-bottom:8px">📄 Unified Master CSV (ONE Sheet — All Data)</div>';
+  html += '<p class="hint mb-3" style="font-size:13px;line-height:1.5">Download <strong>one single CSV file</strong> with a <code>section</code> column. Each row is tagged as Mentees, Sessions, Attendance, Assignments, Submissions, BuddyPods, or Houses. Edit everything in one place!</p>';
+  html += '<div class="download-row">';
+  html += '<button class="btn btn-primary" onclick="app.downloadUnifiedCSV()"><span>⬇</span> Download Unified Master CSV</button>';
+  html += '<button class="btn btn-secondary btn-sm" onclick="app.downloadUnifiedSample()"><span>📋</span> Download Sample CSV</button>';
+  html += '</div></div>';
+
+  html += '<div class="panel mb-4" style="background:var(--bg-2);border:1px solid var(--border)">';
+  html += '<div class="panel-title" style="font-size:14px;color:var(--accent-2);margin-bottom:6px">📊 Multi-Sheet Excel Workbook (Alternative)</div>';
+  html += '<p class="hint mb-3" style="font-size:13px;line-height:1.4">Prefer separate sheets? Download the traditional 7-sheet Excel workbook instead.</p>';
+  html += '<div class="download-row">';
+  html += '<button class="btn btn-primary btn-sm" onclick="app.downloadMasterExcel()"><span>📊</span> Download Master Excel (.xlsx)</button>';
+  html += '</div></div>';
+
+  html += '<div class="form-group"><label>Upload Mode</label>';
+  html += '<select id="masterMode"><option value="merge">Merge — Add new + update existing (safe for small updates)</option><option value="replace">Replace — Wipe and replace all data</option></select>';
+  html += '<p class="hint">Merge is recommended. It adds new records and updates existing ones without deleting anything. Missing sections in your file are left untouched.</p></div>';
+
+  html += '<div class="form-group"><label>Data Type</label>';
+  html += '<select id="masterDataType">';
+  html += '<option value="auto">Auto-detect (Recommended — detects Unified CSV or Multi-Sheet Excel)</option>';
+  html += '<option value="mentees">Mentees</option>';
+  html += '<option value="sessions">Sessions / Lectures</option>';
+  html += '<option value="attendance">Attendance</option>';
+  html += '<option value="assignments">Assignments</option>';
+  html += '<option value="submissions">Submissions / Grades</option>';
+  html += '<option value="ratings">Session Ratings</option>';
+  html += '<option value="buddies">Buddy Pairs</option>';
+  html += '<option value="houses">Houses</option>';
+  html += '<option value="full">Full Cohort JSON (backup/restore)</option>';
+  html += '</select>';
+  html += '<p class="hint">Auto-detect handles both the Unified CSV (single sheet with "section" column) and Multi-Sheet Excel workbooks.</p></div>';
+
+  html += '<div class="form-group"><label>Upload Master File (.xlsx, .xls, .csv, .json)</label>';
+  html += '<div class="dropzone" id="masterDropzone" onclick="document.getElementById(\'masterFile\').click()">';
+  html += '<p>📁 Click to upload or drag & drop your Master file</p>';
+  html += '<p class="file-name" id="masterFileName"></p>';
+  html += '<p class="hint">.xlsx, .xls, .csv, .json accepted — Unified CSV or Multi-Sheet Excel</p></div>';
+  html += '<input type="file" id="masterFile" class="hidden" accept=".json,.csv,.txt,.xlsx,.xls" onchange="app.handleMasterFileSelect(event)" /></div>';
+
+  html += '<div class="form-group"><label>Or paste raw data (CSV / JSON)</label>';
+  html += '<textarea id="masterRaw" placeholder="Paste CSV or JSON content here..."></textarea></div>';
+
+  html += '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:20px">';
+  html += '<button class="btn btn-primary" onclick="app.processMasterFile()" style="min-width:220px;justify-content:center;padding:12px;font-size:14px;font-weight:700">⚡ Import & Update All Tabs</button>';
+  html += '<button class="btn btn-ghost btn-sm" onclick="app.showMasterExample()">📋 See Example Headers</button>';
+  html += '</div>';
+
+  html += '<div class="panel mt-4" style="background:var(--bg-2);border-color:var(--border)">';
+  html += '<div class="panel-title" style="font-size:13px;margin-bottom:10px">📋 Recognized Column Headers</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;font-size:12px">';
+  var groups = [
+    {label:'Mentee Info', cols:'name, email, phone, path, track, profession, northstar, house, buildChallenge, lastActivity'},
+    {label:'Sessions', cols:'id/sessionId, date/sessionDate, title/sessionTitle, module, type/sessionType (lecture/oh)'},
+    {label:'Attendance', cols:'menteeId, sessionId, present (Present/Absent/P/A), rating (1-5)'},
+    {label:'Assignments', cols:'id/assignmentId, title/assignmentTitle, date/assignmentDate'},
+    {label:'Submissions', cols:'menteeId, assignmentId, status (Submitted/Approved/Rejected/Not Submitted)'},
+    {label:'Buddy Pairs', cols:'id, pod/Pod Number, m1/mentee1, m2/mentee2, checkin_W1, checkin_W2...'},
+    {label:'Houses', cols:'name/houseName, mentor, menteeIds (comma-separated)'}
+  ];
+  groups.forEach(function(g) {
+    html += '<div style="padding:8px;background:var(--bg-0);border-radius:6px;border:1px solid var(--border)"><strong style="color:var(--accent-2)">' + g.label + '</strong><br/><span class="text-muted">' + g.cols + '</span></div>';
+  });
+  html += '</div></div>';
+  return html;
+};
+
+app.handleMasterFileSelect = function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  app._masterFileData = null;
+  document.getElementById('masterFileName').textContent = file.name;
+  app.readFileUniversal(file, function(data) { app._masterFileData = data; });
+};
+
+app.downloadMasterExcel = function() {
+  var exportWorkbook = function(cohort) {
+    var fileName = (cohort && cohort.name ? cohort.name.replace(/\s+/g, '_') : 'Master_Cohort_Tracker') + '_Master.xlsx';
+
+    if (typeof XLSX !== 'undefined') {
+      try {
+        var wb = XLSX.utils.book_new();
+
+        var menteesData = (cohort && cohort.mentees && cohort.mentees.length) ? cohort.mentees.map(function(m) {
+          return { id: m.id||'', name: m.name||'', email: m.email||'', phone: m.phone||'', path: m.path||'', track: m.track||'', profession: m.profession||'', northstar: m.northstar||'', house: m.house||'', buildChallenge: m.buildChallenge||'', lastActivity: m.lastActivity||'' };
+        }) : [
+          { id:"m1", name:"Aisha Khan", email:"aisha@example.com", phone:"+92-300-1234567", path:"Code", track:"Employment", profession:"Student", northstar:"Full-stack dev", house:"Phoenix", buildChallenge:"Submitted", lastActivity:"2026-08-05" },
+          { id:"m2", name:"Bilal Ahmed", email:"bilal@example.com", phone:"+92-300-7654321", path:"No-Code", track:"Entrepreneurship", profession:"Freelancer", northstar:"Launch SaaS", house:"Dragon", buildChallenge:"Approved", lastActivity:"2026-08-04" },
+          { id:"m3", name:"Fatima Noor", email:"fatima@example.com", phone:"+92-300-1122334", path:"Code", track:"Employment", profession:"Student", northstar:"Frontend Engineer", house:"Phoenix", buildChallenge:"Not Submitted", lastActivity:"2026-07-28" }
+        ];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(menteesData), "Mentees");
+
+        var sessionsData = (cohort && cohort.sessions && cohort.sessions.length) ? cohort.sessions.map(function(s) {
+          return { id: s.id||'', date: s.date||'', title: s.title||'', module: s.module||'', type: s.type||'' };
+        }) : [
+          { id:"s1", date:"2026-07-01", title:"Orientation & Onboarding", module:"Module 1", type:"lecture" },
+          { id:"s2", date:"2026-07-03", title:"Office Hours - Week 1", module:"Module 1", type:"oh" },
+          { id:"s3", date:"2026-07-08", title:"Intro to Web Dev", module:"Module 1", type:"lecture" },
+          { id:"s4", date:"2026-07-15", title:"HTML/CSS Deep Dive", module:"Module 2", type:"lecture" }
+        ];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sessionsData), "Sessions");
+
+        var attRows = [];
+        if (cohort && cohort.attendance) {
+          Object.keys(cohort.attendance).forEach(function(mid) {
+            Object.keys(cohort.attendance[mid]).forEach(function(sid) {
+              attRows.push({ menteeId: mid, sessionId: sid, present: cohort.attendance[mid][sid].present ? 'Present' : 'Absent', rating: cohort.attendance[mid][sid].rating != null ? cohort.attendance[mid][sid].rating : '' });
+            });
+          });
+        }
+        if (!attRows.length) {
+          attRows = [
+            { menteeId: "m1", sessionId: "s1", present: "Present", rating: 5 },
+            { menteeId: "m1", sessionId: "s3", present: "Present", rating: 4 },
+            { menteeId: "m2", sessionId: "s1", present: "Present", rating: 5 },
+            { menteeId: "m3", sessionId: "s1", present: "Present", rating: 3 }
+          ];
+        }
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(attRows), "Attendance");
+
+        var assignData = (cohort && cohort.assignments && cohort.assignments.length) ? cohort.assignments.map(function(a) {
+          return { id: a.id||'', title: a.title||'', date: a.date||'' };
+        }) : [
+          { id:"a1", title:"Build Challenge", date:"2026-07-15" },
+          { id:"a2", title:"Portfolio Site", date:"2026-07-22" },
+          { id:"a3", title:"JS Calculator", date:"2026-07-29" }
+        ];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(assignData), "Assignments");
+
+        var subRows = [];
+        if (cohort && cohort.submissions) {
+          Object.keys(cohort.submissions).forEach(function(mid) {
+            Object.keys(cohort.submissions[mid]).forEach(function(aid) {
+              subRows.push({ menteeId: mid, assignmentId: aid, status: cohort.submissions[mid][aid] });
+            });
+          });
+        }
+        if (!subRows.length) {
+          subRows = [
+            { menteeId: "m1", assignmentId: "a1", status: "Submitted" },
+            { menteeId: "m1", assignmentId: "a2", status: "Approved" },
+            { menteeId: "m2", assignmentId: "a1", status: "Approved" },
+            { menteeId: "m3", assignmentId: "a1", status: "Rejected" }
+          ];
+        }
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(subRows), "Submissions");
+
+        var buddyRows = [];
+        if (cohort && cohort.buddyPairs && cohort.buddyPairs.length) {
+          cohort.buddyPairs.forEach(function(p, idx) {
+            var r = { id: p.id || ('bp' + (idx+1)), pod: p.pod || (idx + 1), mentee1: p.m1 || '', mentee2: p.m2 || '' };
+            if (p.checkins) { Object.keys(p.checkins).forEach(function(w) { r['checkin_' + w] = p.checkins[w]; }); }
+            buddyRows.push(r);
+          });
+        } else {
+          buddyRows = [
+            { id:"bp1", pod:1, mentee1:"Aisha Khan", mentee2:"Fatima Noor", checkin_W1:"Done", checkin_W2:"Done" },
+            { id:"bp2", pod:2, mentee1:"Bilal Ahmed", mentee2:"Zara Malik", checkin_W1:"Done", checkin_W2:"Done" }
+          ];
+        }
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(buddyRows), "Buddy Pods");
+
+        var houseData = (cohort && cohort.houses && cohort.houses.length) ? cohort.houses.map(function(h) {
+          return { name: h.name||'', mentor: h.mentor||'', menteeIds: Array.isArray(h.mentees) ? h.mentees.join(',') : (h.mentees||'') };
+        }) : [
+          { name:"Phoenix", mentor:"Sarah Ali", menteeIds:"m1,m3" },
+          { name:"Dragon", mentor:"Imran Khan", menteeIds:"m2,m5" }
+        ];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(houseData), "Houses");
+
+        XLSX.writeFile(wb, fileName);
+        app.toast('Downloaded ' + fileName, 'success');
+        return;
+      } catch(e) {
+        console.warn('XLSX.writeFile error, falling back', e);
+        app.toast('Excel download failed. Try the Unified CSV instead.', 'error');
+      }
+    } else {
+      app.toast('XLSX library not loaded. Try the Unified CSV download instead.', 'error');
+    }
+  };
+
+  if (app.currentCohortId) {
+    app.getCohort(app.currentCohortId).then(exportWorkbook);
+  } else {
+    exportWorkbook(null);
+  }
+};
+
+app.showMasterExample = function() {
+  var typeEl = document.getElementById('masterDataType');
+  var type = typeEl ? typeEl.value : 'mentees';
+  if (type === 'auto') type = 'mentees';
+  var ex = app.examples[type];
+  if (!ex) ex = app.examples.mentees;
+  document.getElementById('exampleTypeLabel').textContent = type.charAt(0).toUpperCase() + type.slice(1);
+  var content = '<div class="example-section"><h4>Required Columns</h4><p class="hint">' + ex.desc + '</p></div>';
+  content += '<div class="example-section"><h4>Example CSV / JSON</h4><div class="code-preview">' + app.escapeHtml(ex.csv) + '</div></div>';
+  document.getElementById('exampleContent').innerHTML = content;
+  var links = '<button class="btn btn-primary btn-sm" onclick="app.downloadUnifiedSample()">📄 Download Unified Sample CSV</button>';
+  document.getElementById('exampleDownloadLinks').innerHTML = links;
+  app.openModal('modalExample');
+};
+
+app.processMasterFile = function() {
+  if (!app.currentCohortId) { app.toast('No cohort selected', 'error'); return; }
+  var raw = app._masterFileData || (document.getElementById('masterRaw') ? document.getElementById('masterRaw').value.trim() : '');
+  if (!raw) { app.toast('No data to process. Upload a file or paste data.', 'error'); return; }
+  var mode = document.getElementById('masterMode') ? document.getElementById('masterMode').value : 'merge';
+  var dataType = document.getElementById('masterDataType') ? document.getElementById('masterDataType').value : 'auto';
+
+  app.getCohort(app.currentCohortId).then(function(cohort) {
+    var parsed = app.parseImportData(raw, dataType);
+
+    if (parsed.kind === 'excel_multi' && parsed.sheets) {
+      var summaryParts = [];
+      Object.keys(parsed.sheets).forEach(function(sheetName) {
+        var csvContent = parsed.sheets[sheetName];
+        if (!csvContent || !csvContent.trim()) return;
+        try {
+          var subParsed = app.parseImportData(csvContent, 'auto');
+          if (subParsed.rows && subParsed.headers) {
+            var sn = sheetName.toLowerCase();
+            if (sn.indexOf('session') >= 0) subParsed.kind = 'sessions';
+            else if (sn.indexOf('attend') >= 0) subParsed.kind = 'attendance';
+            else if (sn.indexOf('assign') >= 0 || sn.indexOf('project') >= 0) subParsed.kind = 'assignments';
+            else if (sn.indexOf('submiss') >= 0 || sn.indexOf('grade') >= 0) subParsed.kind = 'submissions';
+            else if (sn.indexOf('buddy') >= 0 || sn.indexOf('pod') >= 0 || sn.indexOf('pair') >= 0) subParsed.kind = 'buddies';
+            else if (sn.indexOf('house') >= 0) subParsed.kind = 'houses';
+            else if (sn.indexOf('mentee') >= 0 || sn.indexOf('student') >= 0) subParsed.kind = 'mentees';
+
+            app.mergeDataIntoCohort(cohort, subParsed, mode);
+            summaryParts.push(sheetName + ' (' + subParsed.rows.length + ' rows)');
+          }
+        } catch(e) {
+          console.warn('Sheet ' + sheetName + ' skipped: ' + e.message);
+        }
+      });
+
+      return app.saveCohort(cohort).then(function() {
+        app.toast('Imported Master Excel — ' + (summaryParts.join(', ') || 'All sheets imported'), 'success');
+      });
+    }
+
+    if (parsed.kind === 'full' && parsed.data) {
+      app.mergeDataIntoCohort(cohort, parsed, mode);
+      return app.saveCohort(cohort);
+    }
+
+    if (parsed.rows && parsed.headers) {
+      app.mergeDataIntoCohort(cohort, parsed, mode);
+      var msg = parsed._unifiedSummary || ('Imported ' + parsed.rows.length + ' rows');
+      return app.saveCohort(cohort).then(function() {
+        app.toast(msg, 'success');
+      });
+    }
+
+    app.toast('Could not parse the file. Use CSV or JSON format.', 'error');
+  }).then(function() {
+    app._masterFileData = null;
+    if (document.getElementById('masterFileName')) document.getElementById('masterFileName').textContent = '';
+    if (document.getElementById('masterRaw')) document.getElementById('masterRaw').value = '';
+    if (document.getElementById('masterFile')) document.getElementById('masterFile').value = '';
+    app.selectCohort(app.currentCohortId);
+  }).catch(function(e) {
+    app.toast('Master import failed: ' + e.message, 'error');
+  });
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+  var observer = new MutationObserver(function() {
+    var dz = document.getElementById('masterDropzone');
+    if (dz && !dz._dzBound) {
+      dz._dzBound = true;
+      dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('dragover'); });
+      dz.addEventListener('dragleave', function() { dz.classList.remove('dragover'); });
+      dz.addEventListener('drop', function(e) {
+        e.preventDefault(); dz.classList.remove('dragover');
+        var file = e.dataTransfer.files[0];
+        if (!file) return;
+        document.getElementById('masterFileName').textContent = file.name;
+        app.readFileUniversal(file, function(data) { app._masterFileData = data; });
+      });
+    }
+  });
+  observer.observe(document.getElementById('mainContent'), { childList: true, subtree: true });
+});
+
+app.filterTable = function(tableId) {
+  var q = document.getElementById('menteeSearch').value.toLowerCase();
+  var rows = document.querySelectorAll('#' + tableId + ' tbody tr');
+  rows.forEach(function(tr) { tr.style.display = tr.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none'; });
+};
+
+// ===================== DEMO DATA =====================
+app.loadDemoData = function() {
+  var id = 'cohort_demo_' + Date.now();
+  var cohort = app.createEmptyCohort(id, 'Cohort 8 (Demo)', 'Demo data for testing');
+
+  cohort.mentees = [
+    {id:"m1",name:"Aisha Khan",email:"aisha@example.com",phone:"+92-300-1234567",path:"Code",track:"Employment",profession:"Student",northstar:"Full-stack dev at a startup",house:"Phoenix",buildChallenge:"Submitted",lastActivity:"2026-08-05"},
+    {id:"m2",name:"Bilal Ahmed",email:"bilal@example.com",phone:"+92-300-7654321",path:"No-Code",track:"Entrepreneurship",profession:"Freelancer",northstar:"Launch a SaaS product",house:"Dragon",buildChallenge:"Approved",lastActivity:"2026-08-04"},
+    {id:"m3",name:"Fatima Noor",email:"fatima@example.com",phone:"+92-300-1112223",path:"Code",track:"Employment",profession:"CS Graduate",northstar:"Backend engineer at fintech",house:"Phoenix",buildChallenge:"Not Submitted",lastActivity:"2026-07-28"},
+    {id:"m4",name:"Hassan Raza",email:"hassan@example.com",phone:"+92-300-4445556",path:"No-Code",track:"Entrepreneurship",profession:"Designer",northstar:"Build a design agency",house:"Tiger",buildChallenge:"Submitted",lastActivity:"2026-08-05"},
+    {id:"m5",name:"Zara Malik",email:"zara@example.com",phone:"+92-300-7778889",path:"Code",track:"Employment",profession:"Data Analyst",northstar:"ML Engineer role",house:"Dragon",buildChallenge:"Rejected",lastActivity:"2026-08-01"},
+    {id:"m6",name:"Omar Farooq",email:"omar@example.com",phone:"+92-300-0001112",path:"Code",track:"Entrepreneurship",profession:"DevOps",northstar:"AI infrastructure startup",house:"Tiger",buildChallenge:"Submitted",lastActivity:"2026-08-06"}
+  ];
+
+  cohort.sessions = [
+    {id:"s1",date:"2026-07-01",title:"Orientation & Onboarding",module:"Module 1",type:"lecture"},
+    {id:"s2",date:"2026-07-03",title:"Office Hours - Week 1",module:"Module 1",type:"oh"},
+    {id:"s3",date:"2026-07-08",title:"Intro to Web Dev",module:"Module 1",type:"lecture"},
+    {id:"s4",date:"2026-07-10",title:"Office Hours - Week 2",module:"Module 1",type:"oh"},
+    {id:"s5",date:"2026-07-15",title:"HTML/CSS Deep Dive",module:"Module 2",type:"lecture"},
+    {id:"s6",date:"2026-07-17",title:"Office Hours - Week 3",module:"Module 2",type:"oh"},
+    {id:"s7",date:"2026-07-22",title:"JavaScript Basics",module:"Module 2",type:"lecture"},
+    {id:"s8",date:"2026-07-24",title:"Office Hours - Week 4",module:"Module 2",type:"oh"},
+    {id:"s9",date:"2026-07-29",title:"React Fundamentals",module:"Module 3",type:"lecture"},
+    {id:"s10",date:"2026-07-31",title:"Office Hours - Week 5",module:"Module 3",type:"oh"},
+    {id:"s11",date:"2026-08-05",title:"APIs & Backend",module:"Module 3",type:"lecture"},
+    {id:"s12",date:"2026-08-07",title:"Office Hours - Week 6",module:"Module 3",type:"oh"}
+  ];
+
+  cohort.assignments = [
+    {id:"a1",title:"Build Challenge",date:"2026-07-15"},
+    {id:"a2",title:"Portfolio Site",date:"2026-07-22"},
+    {id:"a3",title:"JS Calculator",date:"2026-07-29"},
+    {id:"a4",title:"React Todo App",date:"2026-08-05"}
+  ];
+
+  cohort.attendance = {
+    "m1": {"s1":{"present":true,"rating":5},"s2":{"present":true},"s3":{"present":true,"rating":4},"s4":{"present":true},"s5":{"present":true,"rating":5},"s6":{"present":true},"s7":{"present":true,"rating":4},"s8":{"present":true},"s9":{"present":true,"rating":5},"s10":{"present":true},"s11":{"present":true,"rating":4}},
+    "m2": {"s1":{"present":true,"rating":5},"s2":{"present":false},"s3":{"present":true,"rating":4},"s4":{"present":true},"s5":{"present":true,"rating":5},"s6":{"present":true},"s7":{"present":true,"rating":5},"s8":{"present":true},"s9":{"present":true,"rating":4},"s10":{"present":true},"s11":{"present":true,"rating":5}},
+    "m3": {"s1":{"present":true,"rating":3},"s2":{"present":false},"s3":{"present":false},"s4":{"present":false},"s5":{"present":true,"rating":4},"s6":{"present":false},"s7":{"present":false},"s8":{"present":false},"s9":{"present":true,"rating":3},"s10":{"present":false},"s11":{"present":false}},
+    "m4": {"s1":{"present":true,"rating":4},"s2":{"present":true},"s3":{"present":true,"rating":4},"s4":{"present":false},"s5":{"present":true,"rating":4},"s6":{"present":true},"s7":{"present":true,"rating":3},"s8":{"present":true},"s9":{"present":false},"s10":{"present":true},"s11":{"present":true,"rating":4}},
+    "m5": {"s1":{"present":true,"rating":4},"s2":{"present":true},"s3":{"present":false},"s4":{"present":true},"s5":{"present":true,"rating":3},"s6":{"present":false},"s7":{"present":true,"rating":4},"s8":{"present":true},"s9":{"present":true,"rating":3},"s10":{"present":false},"s11":{"present":true,"rating":4}},
+    "m6": {"s1":{"present":true,"rating":5},"s2":{"present":true},"s3":{"present":true,"rating":5},"s4":{"present":true},"s5":{"present":true,"rating":5},"s6":{"present":true},"s7":{"present":true,"rating":5},"s8":{"present":true},"s9":{"present":true,"rating":5},"s10":{"present":true},"s11":{"present":true,"rating":5}}
+  };
+
+  cohort.submissions = {
+    "m1": {"a1":"Submitted","a2":"Approved","a3":"Submitted","a4":"Not Submitted"},
+    "m2": {"a1":"Approved","a2":"Approved","a3":"Approved","a4":"Submitted"},
+    "m3": {"a1":"Not Submitted","a2":"Rejected","a3":"Not Submitted","a4":"Not Submitted"},
+    "m4": {"a1":"Submitted","a2":"Submitted","a3":"Approved","a4":"Not Submitted"},
+    "m5": {"a1":"Rejected","a2":"Submitted","a3":"Not Submitted","a4":"Not Submitted"},
+    "m6": {"a1":"Approved","a2":"Approved","a3":"Approved","a4":"Approved"}
+  };
+
+  cohort.buddyPairs = [
+    {id:"bp1",pod:1,m1:"Aisha Khan",m2:"Fatima Noor",checkins:{"W1":"Done","W2":"Done","W3":"Missed","W4":"Done","W5":"Done","W6":"Pending"}},
+    {id:"bp2",pod:2,m1:"Bilal Ahmed",m2:"Zara Malik",checkins:{"W1":"Done","W2":"Done","W3":"Done","W4":"Done","W5":"Done","W6":"Done"}},
+    {id:"bp3",pod:3,m1:"Hassan Raza",m2:"Omar Farooq",checkins:{"W1":"Done","W2":"Missed","W3":"Done","W4":"Done","W5":"Missed","W6":"Pending"}}
+  ];
+
+  cohort.houses = [
+    {name:"Phoenix",mentor:"Sarah Ali",mentees:["m1","m3"]},
+    {name:"Dragon",mentor:"Imran Khan",mentees:["m2","m5"]},
+    {name:"Tiger",mentor:"Ayesha B",mentees:["m4","m6"]}
+  ];
+
+  app.saveCohort(cohort).then(function() {
+    app.toast('Demo data loaded!', 'success');
+    return app.renderCohortList();
+  }).then(function() {
+    app.selectCohort(id);
+  }).catch(function(e) {
+    app.toast('Error loading demo: ' + e.message, 'error');
+  });
+};
+
+// ===================== INIT =====================
+document.addEventListener('DOMContentLoaded', function() {
+  app.openDB().then(function() {
+    app.renderCohortList();
+    app.toast('Cohort Tracker ready', 'success');
+  }).catch(function(e) {
+    app.toast('Database error: ' + e.message, 'error');
+    console.error(e);
+  });
+});
+</script>
+</body>
+</html>
